@@ -1,13 +1,15 @@
-"""Hybrid retrieval for the knowledge assistant.
+"""
+Hybrid retrieval for the knowledge assistant.
 
 Dense and sparse leaf retrievers orchestrate query embedding and vector search.
 FusionRetriever composes leaf retrievers with reciprocal rank fusion.
-Reranking is deferred to a later plan.
+RerankRetriever composes any base retriever with deterministic reranking.
 """
 
 from knowledge_assistant.retrieval.config import (
     DenseRetrievalSettings,
     FusionRetrievalSettings,
+    RerankRetrievalSettings,
 )
 from knowledge_assistant.retrieval.dense import DenseRetriever
 from knowledge_assistant.retrieval.embeddings import (
@@ -24,6 +26,7 @@ from knowledge_assistant.retrieval.exceptions import (
 )
 from knowledge_assistant.retrieval.fusion import FusionRetriever
 from knowledge_assistant.retrieval.protocol import Retriever
+from knowledge_assistant.retrieval.rerank import Reranker, RerankRetriever, StubReranker
 from knowledge_assistant.retrieval.sparse import SparseRetriever
 
 __all__ = [
@@ -33,12 +36,16 @@ __all__ = [
     "FusionRetrievalSettings",
     "FusionRetriever",
     "QueryEmbeddingProvider",
-    "Retriever",
+    "RerankRetrievalSettings",
+    "RerankRetriever",
+    "Reranker",
     "RetrievalConfigurationError",
     "RetrievalError",
+    "Retriever",
     "SparseQueryEmbeddingProvider",
     "SparseRetriever",
     "SparseVectorValidationError",
     "StubQueryEmbeddingProvider",
+    "StubReranker",
     "StubSparseQueryEmbeddingProvider",
 ]

@@ -45,7 +45,7 @@ All knowledge access happens through MCP tools and resources.
 
 ## Retrieval Layer
 
-The retrieval layer is deterministic and must not call LLMs. Plan 06 implements dense retrieval; Plan 07 implements sparse retrieval; Plan 08 implements rank-based fusion. Reranking is deferred to a later plan.
+The retrieval layer is deterministic and must not call LLMs. Plan 06 implements dense retrieval; Plan 07 implements sparse retrieval; Plan 08 implements rank-based fusion; Plan 09 implements reranking orchestration with a deterministic stub. Real `BAAI/bge-reranker-v2-m3` model runtime is deferred to a future plan.
 
 ### Dense retrieval path
 
@@ -101,6 +101,29 @@ truncate to query.top_k
 RetrievalResult(query=caller_query, results=fused)
 ```
 
+### Reranking retrieval path
+
+```text
+SearchQuery (text, top_k)          ← caller input
+    ↓
+RerankRetriever.retrieve()
+    ↓
+candidate_top_k = top_k * candidate_top_k_multiplier
+candidate_query = SearchQuery(text, top_k=candidate_top_k)
+    ↓
+base Retriever.retrieve(candidate_query)  → RetrievalResult.results
+    ↓
+Reranker.rerank(query=caller_query, candidates=...)
+    ↓
+validate len(reranked) == len(candidates)  ← ValueError on violation
+    ↓
+sort by reranker score + tie-break by chunk_id
+    ↓
+truncate to query.top_k
+    ↓
+RetrievalResult(query=caller_query, results=reranked)
+```
+
 Hybrid retrieval composes dense and sparse leaf retrievers behind `FusionRetriever`:
 
 ```text
@@ -117,26 +140,29 @@ Top Context
 
 | Module | Responsibility |
 | ------ | -------------- |
-| `config.py` | `DenseRetrievalSettings`, `FusionRetrievalSettings` |
+| `config.py` | `DenseRetrievalSettings`, `FusionRetrievalSettings`, `RerankRetrievalSettings` |
 | `protocol.py` | `Retriever` composition protocol |
 | `fusion.py` | `FusionRetriever`, `reciprocal_rank_fusion` (RRF) |
+| `rerank.py` | `RerankRetriever`, `Reranker`, `StubReranker` |
 | `embeddings.py` | `QueryEmbeddingProvider`, `StubQueryEmbeddingProvider`, `SparseQueryEmbeddingProvider`, `StubSparseQueryEmbeddingProvider` |
 | `exceptions.py` | Retrieval-specific error types |
 | `dense.py` | `DenseRetriever` orchestration |
 | `sparse_vectors.py` | `SparseQueryVector` (retrieval-local) |
 | `sparse.py` | `SparseRetriever` orchestration |
 
-**Fusion score semantics (ADR-023):** `FusionRetriever` output `SearchResult.score` values are RRF fusion scores — ordinal ranking keys, not raw dense/sparse similarity scores and not comparable to future reranker scores.
+**Fusion score semantics (ADR-023):** `FusionRetriever` output `SearchResult.score` values are RRF fusion scores — ordinal ranking keys, not raw dense/sparse similarity scores and not comparable to reranker scores.
+
+**Reranked score semantics (ADR-026):** `RerankRetriever` output `SearchResult.score` values are reranker relevance scores — ordinal ranking keys, not comparable to dense, sparse, or RRF scores. The Plan 09 `Reranker` contract preserves candidate count (`N` in → `N` out); only `RerankRetriever` truncates to `query.top_k`. Fusion leaf expansion (`FusionRetrievalSettings.leaf_top_k_multiplier`) and reranking candidate expansion (`RerankRetrievalSettings.candidate_top_k_multiplier`) are independent settings with no cross-layer coupling.
 
 **Query embedding ownership (ADR-013, ADR-015, ADR-019):** retrieval generates query-path dense and sparse embeddings via retrieval-local providers; indexing generates write-path chunk embeddings; storage generates neither.
 
-**Retrieval boundary:** leaf retriever production code depends on `core` and `storage.protocol.VectorStore` only. Fusion production code (`fusion.py`, `protocol.py`) depends on `core` and retrieval-local modules only — not on `VectorStore`, `storage.models`, `qdrant_client`, or indexing packages. Indexing may import `storage.models` for upsert boundary types.
+**Retrieval boundary:** leaf retriever production code depends on `core` and `storage.protocol.VectorStore` only. Fusion and reranking production code (`fusion.py`, `protocol.py`, `rerank.py`) depend on `core` and retrieval-local modules only — not on `VectorStore`, `storage.models`, `qdrant_client`, or indexing packages. Indexing may import `storage.models` for upsert boundary types.
 
 **Public contract:** callers submit `SearchQuery` text and receive `RetrievalResult`. Vectors are internal to retrieval and must not leak to MCP, agent, or other higher layers.
 
 **Sparse placeholder constraint (ADR-020):** indexing still stores a constant sparse placeholder per ADR-010 until a future sparse indexing plan replaces it. Meaningful sparse retrieval against production-indexed corpora requires that future plan and a full reindex with caller approval. Plan 07 delivers the read path only.
 
-**Dependency rule:** leaf retrievers depend on the `VectorStore` protocol only — not on `qdrant_client`, `StorageSettings`, or other storage modules. Fusion depends on the `Retriever` protocol only. See [ADR-014](DECISIONS.md#adr-014-dense-retrieval-boundary) through [ADR-023](DECISIONS.md#adr-023-reciprocal-rank-fusion-algorithm).
+**Dependency rule:** leaf retrievers depend on the `VectorStore` protocol only — not on `qdrant_client`, `StorageSettings`, or other storage modules. Fusion and reranking depend on the `Retriever` protocol (and reranking depends on the `Reranker` protocol) only. See [ADR-014](DECISIONS.md#adr-014-dense-retrieval-boundary) through [ADR-027](DECISIONS.md#adr-027-future-bge-cross-encoder-reranker-integration).
 
 ---
 

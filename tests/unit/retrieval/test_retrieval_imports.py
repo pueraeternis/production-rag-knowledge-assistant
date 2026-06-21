@@ -80,9 +80,21 @@ def test_fusion_modules_do_not_import_storage() -> None:
     fusion_modules = (
         Path("src/knowledge_assistant/retrieval/fusion.py"),
         Path("src/knowledge_assistant/retrieval/protocol.py"),
+        Path("src/knowledge_assistant/retrieval/rerank.py"),
     )
     forbidden = "knowledge_assistant.storage"
 
     for path in fusion_modules:
         content = path.read_text(encoding="utf-8")
         assert forbidden not in content, f"{path.name} must not import storage"
+
+
+def test_rerank_modules_do_not_import_model_runtimes() -> None:
+    rerank_path = Path("src/knowledge_assistant/retrieval/rerank.py")
+    content = rerank_path.read_text(encoding="utf-8")
+    forbidden_patterns = ("torch", "transformers", "sentence_transformers")
+
+    for pattern in forbidden_patterns:
+        assert pattern not in content, (
+            f"rerank.py must not import model runtime {pattern}"
+        )

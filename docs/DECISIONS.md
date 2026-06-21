@@ -936,3 +936,203 @@ where:
 | CombSUM / CombMNZ on ranks | Less common in modern hybrid RAG; RRF is lecture-aligned |
 | Preserve dense score when sparse rank missing | Requires core model extension; deferred |
 | Use `query.top_k` unchanged for leaf retrievers | Reduces fusion benefit when modalities disagree on tail ranks |
+
+---
+
+### ADR-024: Reranking Boundary
+
+**Status:** Accepted
+
+**Date:** 2026-06-21
+
+#### Context
+
+Plans 06–08 deliver dense retrieval, sparse retrieval, and RRF fusion. `PROJECT.md` and `docs/ARCHITECTURE.md` position reranking as the next retrieval-layer stage before MCP exposure. Reranking must refine candidate ordering without LLM calls, storage changes, or modifications to leaf/fusion retriever APIs.
+
+#### Decision
+
+* Reranking is implemented in `knowledge_assistant.retrieval`.
+* `RerankRetriever` is the public orchestration entry point for reranked search.
+* Responsibilities:
+  * accept caller `SearchQuery` (text + final `top_k`);
+  * invoke one injected `Retriever` with an expanded candidate `SearchQuery` (see ADR-026);
+  * extract ranked `SearchResult` tuples from the base `RetrievalResult`;
+  * call `Reranker.rerank(query, candidates)` — reranker must return `len(candidates)` results (candidate preservation);
+  * validate `len(reranked) == len(candidates)` when candidates are non-empty; raise `ValueError` on violation;
+  * truncate reranked output to at most `query.top_k` — the **only** candidate reduction in Plan 09;
+  * return one `RetrievalResult` with caller `query` echoed.
+* `RerankRetriever` must **not** call `VectorStore`, embed queries, call LLMs, or import dense/sparse/fusion concrete retrievers.
+* `RerankRetriever` must **not** modify `DenseRetriever`, `SparseRetriever`, or `FusionRetriever`.
+* Reranked `SearchResult.score` values are **reranker relevance scores**, not dense, sparse, or RRF scores.
+* Base retrievers remain **unchanged composable units** with unchanged public APIs.
+
+#### Consequences
+
+* MCP and agent plans (future) depend on `RerankRetriever.retrieve`, not on reranking internals.
+* Reranking tests use fake base retrievers and `StubReranker` without Qdrant or model runtimes.
+* Production wiring typically nests `FusionRetriever` as the base retriever; tests may use any `Retriever` fake.
+
+#### Alternatives Considered
+
+| Alternative | Why rejected |
+| ----------- | ------------ |
+| Reranking inside `FusionRetriever` | Violates single-capability plans; couples fusion and reranking |
+| MCP calls cross-encoder directly | Violates component boundaries; reranking belongs in retrieval |
+| Rerank only inside MCP operations layer | Skips reusable retrieval orchestration; harder to test in isolation |
+| Modify `RetrievalResult` to carry pre-rerank scores | Requires core model changes; out of scope |
+
+---
+
+### ADR-025: Reranker Protocol
+
+**Status:** Accepted
+
+**Date:** 2026-06-21
+
+#### Context
+
+Plan 08 introduced `Retriever` for composable orchestration. Reranking is a separate concern from candidate retrieval: it scores and reorders already-retrieved `SearchResult` tuples. A dedicated protocol enables stub and future real cross-encoder implementations without coupling `RerankRetriever` to model runtimes.
+
+#### Decision
+
+* Define retrieval-local `Reranker` protocol in `retrieval/rerank.py` with `rerank(query: SearchQuery, candidates: tuple[SearchResult, ...]) -> tuple[SearchResult, ...]`.
+* `RerankRetriever.__init__` accepts one `Retriever` and one `Reranker` via keyword-only parameters `base_retriever`, `reranker`, and `settings`.
+* Parameter name `base_retriever` documents conventional wiring (typically `FusionRetriever`); the protocol does **not** encode retriever kind — any `Retriever` implementation is valid.
+* `RerankRetriever` depends on `Retriever` and `Reranker`, not on `VectorStore` or embedding providers.
+* Plan 09 provides `StubReranker` as the deterministic development/test implementation.
+* **Candidate preservation (Plan 09 contract):** every `Reranker` implementation must return exactly `len(candidates)` results — rerankers do not add or remove candidates; they only rescale scores and reorder.
+* **Contract enforcement:** `RerankRetriever` validates `len(reranked) == len(candidates)` when candidates are non-empty. Violations raise `ValueError` (no new exception types; no `assert` in production code).
+* `Reranker.rerank` accepts the **caller** `SearchQuery`, not the expanded candidate query.
+
+#### Consequences
+
+* Unit and integration tests inject `FakeRetriever` and `StubReranker` without subclassing production retrievers.
+* Future real cross-encoder implements `Reranker` in the same module without changing `RerankRetriever`.
+* `Reranker.rerank` accepts the **caller** `SearchQuery`, not the expanded candidate query.
+
+#### Alternatives Considered
+
+| Alternative | Why rejected |
+| ----------- | ------------ |
+| Hard dependency on `FusionRetriever` only | Couples reranking to hybrid fusion; blocks reranking dense-only paths in tests |
+| Callable protocol `(SearchQuery, tuple) -> tuple` | Less discoverable; inconsistent with `Retriever` / embedding provider patterns |
+| Reranker accepts raw `str` query text only | Loses typed retrieval contract; `SearchQuery` is the established caller input |
+| Reranking as a method on `FusionRetriever` | Violates composability; fusion and reranking remain separate orchestrators |
+| Rely on reranker contract without orchestrator validation | Silent violations possible; fail-fast `ValueError` in `RerankRetriever` is required |
+| Use `assert` for candidate-count validation in production | Assertions may be disabled; explicit `ValueError` is deterministic and testable |
+
+---
+
+### ADR-026: Reranked Score Semantics and Candidate Pool
+
+**Status:** Accepted
+
+**Date:** 2026-06-21
+
+#### Context
+
+Retrieval passes through multiple score spaces: dense cosine, sparse dot-product, RRF fusion. Reranking introduces a fourth score space. Callers need predictable semantics. Reranking quality improves when the base retriever returns more candidates than the final `top_k`, mirroring Plan 08 leaf candidate expansion.
+
+#### Decision
+
+**Candidate pool:**
+
+* Base retriever receives `SearchQuery(text=query.text, top_k=candidate_top_k)` where `candidate_top_k >= query.top_k`.
+* Default: `candidate_top_k = query.top_k * candidate_top_k_multiplier` with `candidate_top_k_multiplier = 2` (see `RerankRetrievalSettings`).
+* Final reranked output is truncated to `query.top_k`.
+
+**Score semantics after reranking:**
+
+* `SearchResult.score` = reranker relevance score returned by `Reranker.rerank`.
+* Higher is better.
+* Reranked scores are **not comparable** to dense, sparse, or RRF scores.
+* Original retrieval scores are **not preserved** in Plan 09 output.
+
+**Ordering:**
+
+1. `Reranker.rerank` returns candidates sorted by reranker score descending.
+2. Tie-break equal reranker scores by `chunk_id` ascending (lexicographic string order) for deterministic ordering.
+
+**Candidate preservation contract (Plan 09 invariant):**
+
+* Every `Reranker` implementation must satisfy `len(output) == len(candidates)` for Plan 09.
+* The **only** candidate reduction permitted in Plan 09 is `RerankRetriever` final truncation to `query.top_k` after `Reranker.rerank` returns.
+* Score-threshold filtering, confidence cutoffs, and reranker-side candidate dropping are **not** part of the Plan 09 contract.
+
+**Contract enforcement:**
+
+* `RerankRetriever` validates `len(reranked) == len(candidates)` when `len(candidates) > 0`.
+* Violations raise `ValueError`. Do not use `assert` for production correctness.
+
+**Fewer candidates than requested from base retriever:**
+
+* When the base retriever returns fewer than `candidate_top_k` results, rerank **all returned candidates**; do not error or pad.
+
+**Deterministic ordering guarantee:**
+
+For identical `query` and `candidates` inputs, reranking output must be **fully deterministic** — identical scores and ordering on every invocation.
+
+**Fusion candidate pool independence:**
+
+* Fusion candidate expansion (`FusionRetrievalSettings.leaf_top_k_multiplier`) and reranking candidate expansion (`RerankRetrievalSettings.candidate_top_k_multiplier`) are **independent**.
+* `RerankRetriever` controls only the `top_k` it forwards to its injected `base_retriever`.
+
+**Batch shape:**
+
+* `Reranker.rerank` processes **one query and its full candidate tuple** in a single call (single-query batch).
+
+#### Consequences
+
+* Reranking behavior is fully testable with hand-computed score expectations for `StubReranker`.
+* Expanding the candidate pool improves reranker recall when fusion ranks a relevant chunk outside the final `top_k`.
+* Operators can tune `candidate_top_k_multiplier` without code changes.
+* Contract violations surface immediately as `ValueError` from `RerankRetriever`.
+
+#### Alternatives Considered
+
+| Alternative | Why rejected |
+| ----------- | ------------ |
+| Rerank with `query.top_k` unchanged on base retriever | Reduces reranker benefit when fusion ordering places good chunks at the tail |
+| Preserve RRF score alongside reranker score | Requires core model extension; deferred |
+| Per-candidate `rerank_one` API | More round trips; harder to swap in batch cross-encoders later |
+| Non-deterministic tie-breaking | Breaks reproducible tests and lecture demo expectations |
+| Trust reranker contract without `RerankRetriever` validation | Silent contract violations; rejected in favor of fail-fast `ValueError` |
+
+---
+
+### ADR-027: Future BGE Cross-Encoder Reranker Integration
+
+**Status:** Accepted (documentation only — no Plan 09 implementation)
+
+**Date:** 2026-06-21
+
+#### Context
+
+`PROJECT.md` specifies `BAAI/bge-reranker-v2-m3` as the production reranker model. Plan 09 delivers orchestration and a deterministic stub only. Real model integration requires `torch` / `transformers` dependencies and is a separate deliverable.
+
+#### Decision
+
+* A **future plan** (backlog: BGE cross-encoder reranker runtime) will implement `BGECrossEncoderReranker` (exact class name may vary) in `retrieval/rerank.py` implementing the `Reranker` protocol.
+* That plan will:
+  * add approved model runtime dependencies (`torch`, `transformers`, or `sentence-transformers` as chosen in that plan);
+  * score `(query.text, chunk.text)` pairs via `BAAI/bge-reranker-v2-m3`;
+  * remain inside `knowledge_assistant.retrieval` — not MCP, agent, or `llm/`;
+  * plug into existing `RerankRetriever` via constructor injection without API changes;
+  * obey the Plan 09 candidate preservation contract (`len(output) == len(candidates)`) unless a **separate** future plan explicitly revises the `Reranker` contract to allow filtering.
+* Plan 09 must **not** add `torch`, `transformers`, or `sentence-transformers` to `pyproject.toml`.
+* `StubReranker` remains the default for tests, CI, and development without GPU.
+
+#### Consequences
+
+* Plan 09 completes the retrieval pipeline shape: dense → sparse → fusion → rerank (stub).
+* Lecture demo can show reranking orchestration before model runtime is integrated.
+* MCP plans can depend on `RerankRetriever` interface stability.
+
+#### Alternatives Considered
+
+| Alternative | Why rejected |
+| ----------- | ------------ |
+| Bundle real BGE reranker into Plan 09 | Violates one-capability scope; adds heavy dependencies |
+| Place cross-encoder in `llm/` | Violates retrieval ownership; reranking is not LLM inference |
+| MCP-owned reranking | Violates component boundaries in `docs/ARCHITECTURE.md` |
+| Skip stub; mock only in tests | Loses deterministic dev path and import-boundary clarity |

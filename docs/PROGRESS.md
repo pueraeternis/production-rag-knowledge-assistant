@@ -142,4 +142,20 @@ Established hybrid rank-based fusion in `knowledge_assistant.retrieval`:
 * recorded ADR-021 through ADR-023 in `docs/DECISIONS.md`;
 * documented fusion retrieval path and fused score semantics in `docs/ARCHITECTURE.md`.
 
-Reranking remains deferred to Plan 09.
+---
+
+## 2026-06-21 — Reranking
+
+**Plan:** [09-reranking.md](plans/completed/09-reranking.md)
+
+Established deterministic reranking orchestration in `knowledge_assistant.retrieval`:
+
+* defined retrieval-local `Reranker` protocol with candidate preservation contract (`N` in → `N` out);
+* added `RerankRetrievalSettings` with `candidate_top_k_multiplier` for candidate pool expansion;
+* implemented `StubReranker` (deterministic Jaccard token overlap, no model runtime);
+* implemented `RerankRetriever` wrapping any `Retriever` with contract enforcement via `ValueError`;
+* added unit tests in `tests/unit/retrieval/` and integration tests with `FakeRetriever` in `tests/integration/retrieval/`;
+* recorded ADR-024 through ADR-027 in `docs/DECISIONS.md`;
+* documented reranking retrieval path and reranked score semantics in `docs/ARCHITECTURE.md`.
+
+Real `BAAI/bge-reranker-v2-m3` cross-encoder runtime remains deferred to a future plan per ADR-027.
