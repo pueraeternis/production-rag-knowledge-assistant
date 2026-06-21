@@ -22,6 +22,7 @@ from knowledge_assistant.storage.mapping import (
     payload_to_chunk,
 )
 from knowledge_assistant.storage.models import ChunkUpsertItem
+from knowledge_assistant.storage.validation import validate_sparse_search_input
 
 
 def _chunk_id_to_point_id(chunk_id: ChunkId) -> str:
@@ -122,6 +123,38 @@ class QdrantVectorStore:
             collection_name=self._settings.collection_name,
             query=list(vector),
             using=DENSE_VECTOR_NAME,
+            limit=top_k,
+        )
+        results: list[SearchResult] = []
+        for point in response.points:
+            if point.payload is None:
+                continue
+            chunk_id = _point_id_to_chunk_id(point.id)
+            chunk = payload_to_chunk(point.payload, chunk_id=chunk_id)
+            results.append(SearchResult(chunk=chunk, score=point.score))
+        return tuple(results)
+
+    def search_sparse(
+        self,
+        *,
+        indices: Sequence[int],
+        values: Sequence[float],
+        top_k: int,
+    ) -> tuple[SearchResult, ...]:
+        if not self.collection_exists():
+            msg = f"collection {self._settings.collection_name!r} not found"
+            raise CollectionNotFoundError(msg)
+        if top_k < 1:
+            msg = "top_k must be >= 1"
+            raise ValueError(msg)
+        if len(indices) == 0:
+            return ()
+
+        validate_sparse_search_input(indices, values)
+        response = self._client.query_points(
+            collection_name=self._settings.collection_name,
+            query=models.SparseVector(indices=list(indices), values=list(values)),
+            using=SPARSE_VECTOR_NAME,
             limit=top_k,
         )
         results: list[SearchResult] = []

@@ -104,3 +104,24 @@ Established the dense retrieval path in `knowledge_assistant.retrieval`:
 * added unit tests in `tests/unit/retrieval/` and integration tests with fake `VectorStore` in `tests/integration/retrieval/`;
 * recorded ADR-014 through ADR-016 in `docs/DECISIONS.md`;
 * documented retrieval layer dense path in `docs/ARCHITECTURE.md`.
+
+---
+
+## 2026-06-21 — Sparse Retrieval
+
+**Plan:** [07-sparse-retrieval.md](plans/completed/07-sparse-retrieval.md)
+
+Established the sparse retrieval path in `knowledge_assistant.retrieval`:
+
+* extended `VectorStore` protocol with `search_sparse` (sixth method);
+* implemented `QdrantVectorStore.search_sparse` querying the `sparse` named vector;
+* added storage structural validation for sparse search inputs;
+* implemented `SparseRetriever` orchestrating query sparse embedding and sparse search;
+* defined retrieval-local `SparseQueryVector` and `SparseQueryEmbeddingProvider` protocol;
+* added `StubSparseQueryEmbeddingProvider` (hash-based, deterministic, no model runtime);
+* added unit tests in `tests/unit/retrieval/` and `tests/unit/storage/`;
+* added integration tests with fake `VectorStore` and in-memory Qdrant;
+* recorded ADR-017 through ADR-020 in `docs/DECISIONS.md`;
+* documented sparse retrieval path and future placeholder constraint in `docs/ARCHITECTURE.md`.
+
+Indexing sparse generation and reindex migration remain deferred to a future plan per ADR-020.

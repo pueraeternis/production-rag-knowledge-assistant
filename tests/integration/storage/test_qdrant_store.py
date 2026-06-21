@@ -25,6 +25,7 @@ def _make_item(
     chunk_id: str,
     dense_vector: tuple[float, ...],
     text: str,
+    sparse_vector: SparseVector | None = None,
 ) -> ChunkUpsertItem:
     return ChunkUpsertItem(
         chunk=Chunk(
@@ -43,7 +44,7 @@ def _make_item(
             source_uri=None,
         ),
         dense_vector=dense_vector,
-        sparse_vector=SparseVector(indices=(0, 2), values=(0.8, 0.2)),
+        sparse_vector=sparse_vector or SparseVector(indices=(0, 2), values=(0.8, 0.2)),
     )
 
 
@@ -226,3 +227,92 @@ class TestUpsertAndSearchDense:
             section_title="Overview",
             line_range=LineRange(start_line=1, end_line=5),
         )
+
+
+class TestSearchSparse:
+    def test_upsert_and_search_returns_results_ordered_by_score(
+        self,
+        vector_store: QdrantVectorStore,
+    ) -> None:
+        vector_store.create_collection()
+        chunk_id_near = str(uuid.uuid4())
+        chunk_id_far = str(uuid.uuid4())
+        items = (
+            _make_item(
+                chunk_id=chunk_id_near,
+                dense_vector=(1.0, 0.0, 0.0, 0.0),
+                text="sparse near match",
+                sparse_vector=SparseVector(indices=(10, 20), values=(0.9, 0.1)),
+            ),
+            _make_item(
+                chunk_id=chunk_id_far,
+                dense_vector=(0.0, 1.0, 0.0, 0.0),
+                text="sparse far match",
+                sparse_vector=SparseVector(indices=(10, 30), values=(0.1, 0.9)),
+            ),
+        )
+        vector_store.upsert_chunks(items)
+
+        results = vector_store.search_sparse(
+            indices=[10, 20],
+            values=[0.9, 0.1],
+            top_k=2,
+        )
+
+        assert len(results) == 2
+        assert results[0].chunk.chunk_id == ChunkId(chunk_id_near)
+        assert results[0].chunk.text == "sparse near match"
+        assert results[0].score >= results[1].score
+
+    def test_sparse_ranking_differs_from_dense_for_different_vectors(
+        self,
+        vector_store: QdrantVectorStore,
+    ) -> None:
+        vector_store.create_collection()
+        chunk_id_sparse_winner = str(uuid.uuid4())
+        chunk_id_dense_winner = str(uuid.uuid4())
+        items = (
+            _make_item(
+                chunk_id=chunk_id_sparse_winner,
+                dense_vector=(0.0, 1.0, 0.0, 0.0),
+                text="sparse winner",
+                sparse_vector=SparseVector(indices=(100,), values=(1.0,)),
+            ),
+            _make_item(
+                chunk_id=chunk_id_dense_winner,
+                dense_vector=(1.0, 0.0, 0.0, 0.0),
+                text="dense winner",
+                sparse_vector=SparseVector(indices=(200,), values=(1.0,)),
+            ),
+        )
+        vector_store.upsert_chunks(items)
+
+        sparse_results = vector_store.search_sparse(
+            indices=[100],
+            values=[1.0],
+            top_k=1,
+        )
+        dense_results = vector_store.search_dense(
+            vector=[1.0, 0.0, 0.0, 0.0],
+            top_k=1,
+        )
+
+        assert sparse_results[0].chunk.chunk_id == ChunkId(chunk_id_sparse_winner)
+        assert dense_results[0].chunk.chunk_id == ChunkId(chunk_id_dense_winner)
+
+    def test_search_sparse_returns_empty_tuple_for_empty_indices(
+        self,
+        vector_store: QdrantVectorStore,
+    ) -> None:
+        vector_store.create_collection()
+
+        results = vector_store.search_sparse(indices=[], values=[], top_k=5)
+
+        assert results == ()
+
+    def test_search_sparse_raises_when_collection_missing(
+        self,
+        vector_store: QdrantVectorStore,
+    ) -> None:
+        with pytest.raises(CollectionNotFoundError):
+            vector_store.search_sparse(indices=[0], values=[1.0], top_k=1)

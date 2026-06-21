@@ -34,3 +34,13 @@ class VectorStore(Protocol):
     ) -> tuple[SearchResult, ...]:
         """Search the dense vector and return chunks with similarity scores."""
         ...
+
+    def search_sparse(
+        self,
+        *,
+        indices: Sequence[int],
+        values: Sequence[float],
+        top_k: int,
+    ) -> tuple[SearchResult, ...]:
+        """Search the sparse named vector and return chunks with scores."""
+        ...

@@ -13,17 +13,23 @@ from knowledge_assistant.storage.models import ChunkUpsertItem
 
 
 class FakeVectorStore:
-    """In-memory VectorStore fake that records dense search calls."""
+    """In-memory VectorStore fake that records dense and sparse search calls."""
 
     def __init__(
         self,
         *,
         search_results: tuple[SearchResult, ...] = (),
+        sparse_search_results: tuple[SearchResult, ...] = (),
     ) -> None:
         self.search_results = search_results
+        self.sparse_search_results = sparse_search_results
         self.last_vector: Sequence[float] | None = None
         self.last_top_k: int | None = None
         self.search_dense_call_count = 0
+        self.last_sparse_indices: Sequence[int] | None = None
+        self.last_sparse_values: Sequence[float] | None = None
+        self.last_sparse_top_k: int | None = None
+        self.search_sparse_call_count = 0
 
     def create_collection(self) -> None:
         pass
@@ -47,6 +53,35 @@ class FakeVectorStore:
         self.last_vector = tuple(vector)
         self.last_top_k = top_k
         return self.search_results
+
+    def search_sparse(
+        self,
+        *,
+        indices: Sequence[int],
+        values: Sequence[float],
+        top_k: int,
+    ) -> tuple[SearchResult, ...]:
+        self.search_sparse_call_count += 1
+        self.last_sparse_indices = tuple(indices)
+        self.last_sparse_values = tuple(values)
+        self.last_sparse_top_k = top_k
+        return self.sparse_search_results
+
+
+class CountingSparseQueryEmbeddingProvider:
+    """Records embed_query calls via StubSparseQueryEmbeddingProvider."""
+
+    def __init__(self) -> None:
+        from knowledge_assistant.retrieval.embeddings import (
+            StubSparseQueryEmbeddingProvider,
+        )
+
+        self._stub = StubSparseQueryEmbeddingProvider()
+        self.embed_query_call_count = 0
+
+    def embed_query(self, text: str):
+        self.embed_query_call_count += 1
+        return self._stub.embed_query(text)
 
 
 class CountingQueryEmbeddingProvider:

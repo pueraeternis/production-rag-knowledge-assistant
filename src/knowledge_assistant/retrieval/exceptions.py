@@ -11,3 +11,7 @@ class RetrievalConfigurationError(RetrievalError):
 
 class EmbeddingDimensionError(RetrievalError):
     """Raised when an embedding vector has an unexpected dimension."""
+
+
+class SparseVectorValidationError(RetrievalError):
+    """Raised when a sparse query vector fails retrieval-local validation."""

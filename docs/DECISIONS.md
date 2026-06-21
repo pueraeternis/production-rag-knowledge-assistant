@@ -628,3 +628,158 @@ Real BGE-M3 integration is deferred. Retrieval still needs a deterministic, test
 | Random vectors per query | Non-deterministic; breaks reproducible tests |
 | Zero vector placeholder | Poor cosine behavior; less representative of real embeddings |
 | Real BGE-M3 in Plan 06 | Explicitly deferred; adds model runtime dependencies |
+
+---
+
+### ADR-017: Sparse Retrieval Boundary
+
+**Status:** Accepted
+
+**Date:** 2026-06-21
+
+#### Context
+
+Plan 04 defers `search_sparse` to Plan 07 (ADR-004). ADR-013 assigns query-path embedding ownership to retrieval. ADR-014 establishes the dense leaf-retriever pattern. Sparse retrieval must mirror dense retrieval without coupling retrieval to `storage.models`.
+
+#### Decision
+
+* Sparse retrieval is implemented in `knowledge_assistant.retrieval`.
+* `SparseRetriever` is the public orchestration entry point for sparse search.
+* Responsibilities:
+  * accept `SearchQuery` (text + `top_k`);
+  * generate query sparse embeddings via `SparseQueryEmbeddingProvider`;
+  * validate sparse query representation via retrieval-local rules;
+  * call `VectorStore.search_sparse(indices=..., values=..., top_k=query.top_k)`;
+  * wrap `tuple[SearchResult, ...]` in `RetrievalResult`.
+* The retrieval layer must **not** expose sparse vectors to callers.
+* Callers work only with text queries via `SearchQuery`.
+* `SparseRetriever` must **not** expose vector-accepting public APIs or passthrough wrappers around `search_sparse`.
+* Raw sparse similarity scores from storage are returned unchanged in `SearchResult.score`.
+* `SparseRetriever` is a **leaf retriever**; Plan 08 may compose it alongside `DenseRetriever` without changing its public API.
+* `DenseRetriever` remains unchanged by Plan 07.
+
+#### Consequences
+
+* MCP and agent plans can depend on `SparseRetriever.retrieve`, not on storage or sparse embedding internals.
+* Retrieval tests inject fake `VectorStore` and stub sparse providers without Qdrant.
+* Plan 08 composes `DenseRetriever` and `SparseRetriever` as peer leaf retrievers.
+
+#### Alternatives Considered
+
+| Alternative | Why rejected |
+| ----------- | ------------ |
+| MCP calls `VectorStore.search_sparse` directly | Violates component boundaries; pushes embedding into MCP |
+| Storage accepts query text | Violates ADR-006; couples persistence to embedding models |
+| `SparseRetriever` imports `storage.models.SparseVector` | Violates retrieval boundary per Plan 06 |
+| Single `HybridRetriever` replacing leaf retrievers | Premature; fusion belongs in Plan 08 |
+
+---
+
+### ADR-018: SparseQueryEmbeddingProvider
+
+**Status:** Accepted
+
+**Date:** 2026-06-21
+
+#### Context
+
+ADR-015 defines `QueryEmbeddingProvider` for dense query embeddings. Sparse query embeddings require a separate contract with different output shape (indices + values, not fixed-dimension dense vectors). Indexing embedding providers must not be reused for the query path (ADR-013).
+
+#### Decision
+
+* Define retrieval-local types and protocol in `retrieval/sparse_vectors.py` and `retrieval/embeddings.py`:
+  * `SparseQueryVector` — frozen dataclass with retrieval-owned validation;
+  * `SparseQueryEmbeddingProvider` protocol with `embed_query(text: str) -> SparseQueryVector`.
+* Do **not** import `storage.models.SparseVector` in retrieval production code.
+* Do **not** import from `knowledge_assistant.indexing.embeddings`.
+* Real BAAI/bge-m3 sparse query-path implementation is deferred; it will implement this protocol.
+* `SparseRetriever` depends on `SparseQueryEmbeddingProvider`, not on indexing types.
+* `llm/` is not the embedding owner for the sparse query path (reinforces ADR-013).
+
+#### Consequences
+
+* Indexing and retrieval sparse contracts evolve independently.
+* Retrieval unit tests mock `embed_query` without indexing package imports.
+* Future BGE-M3 integration replaces `StubSparseQueryEmbeddingProvider` within retrieval only.
+
+#### Alternatives Considered
+
+| Alternative | Why rejected |
+| ----------- | ------------ |
+| Reuse indexing write-path sparse provider | Different ownership; couples read/write paths |
+| Return `storage.models.SparseVector` from provider | Couples retrieval to storage write boundary types |
+| Shared sparse module in `core/` | Pollutes domain layer per ADR-001 |
+| Primitives only, no `SparseQueryVector` | Loses retrieval-local validation |
+
+---
+
+### ADR-019: Sparse Embedding Ownership
+
+**Status:** Accepted
+
+**Date:** 2026-06-21
+
+#### Context
+
+ADR-013 establishes dense embedding ownership. Sparse vectors have parallel write-path (indexing) and query-path (retrieval) responsibilities. Without explicit sparse ownership documentation, future plans could blur boundaries.
+
+#### Decision
+
+```text
+Indexing owns write-path sparse embeddings (document chunks).  [future plan]
+Retrieval owns query-path sparse embeddings (search queries).   [Plan 07]
+Storage owns neither.
+```
+
+* **Retrieval (Plan 07)** generates sparse embeddings for user queries before `VectorStore.search_sparse`, via `SparseQueryEmbeddingProvider.embed_query`, using retrieval-local `SparseQueryVector` only.
+* **Indexing (future plan)** will generate sparse embeddings for document chunks before `VectorStore.upsert_chunks`. Plan 07 does not implement indexing sparse generation. ADR-010 placeholder remains in place.
+* **Storage** receives pre-computed sparse `indices` and `values` on search; receives `SparseVector` on upsert from indexing (unchanged). Storage does not generate sparse embeddings.
+* The `llm/` package is not the sparse embedding owner for either path.
+
+#### Consequences
+
+* Plan 07 delivers query-path sparse retrieval without coupling to indexing implementation.
+* Storage remains a passive vector store for sparse search primitives.
+* A future sparse indexing plan can implement write-path generation independently.
+
+#### Alternatives Considered
+
+| Alternative | Why rejected |
+| ----------- | ------------ |
+| Implement write-path sparse in Plan 07 | Violates one-capability-per-plan principle |
+| Single shared `SparseEmbeddingProvider` in `core/` | Pollutes domain layer per ADR-001 |
+| Storage generates query sparse vectors | Violates ADR-006 |
+
+---
+
+### ADR-020: Reindex Requirement for Future Sparse Migration
+
+**Status:** Accepted
+
+**Date:** 2026-06-21
+
+#### Context
+
+ADR-010 stores a constant sparse placeholder on every chunk. Meaningful sparse retrieval requires per-chunk sparse vectors aligned with query sparse encoding. This migration is a future concern, not a Plan 07 deliverable.
+
+#### Decision
+
+* When a future plan replaces ADR-010 placeholders with real per-chunk sparse encoding, a **full reindex** will be required.
+* Recovery path (future): caller-approved `index_documents(..., rebuild=True)`.
+* Partial sparse vector updates or in-place migration are **not** planned.
+* Sparse retrieval against placeholder-indexed corpora produces meaningless sparse rankings until that future migration completes.
+* Dense retrieval is unaffected (sparse slot ignored by `search_dense`).
+
+#### Consequences
+
+* Plan 07 can ship sparse retrieval infrastructure without blocking on indexing changes.
+* Operators will need a future reindex window before production sparse retrieval against real corpora.
+* Plan 08 fusion requires meaningful sparse data from a future indexing plan for useful hybrid results.
+
+#### Alternatives Considered
+
+| Alternative | Why rejected |
+| ----------- | ------------ |
+| Bundle migration into Plan 07 | Scope expansion; mixes retrieval with indexing |
+| In-place sparse vector patch | Out of scope; adds complexity |
+| Lazy reindex on first sparse query | Violates human-in-the-loop |

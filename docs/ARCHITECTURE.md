@@ -45,7 +45,9 @@ All knowledge access happens through MCP tools and resources.
 
 ## Retrieval Layer
 
-The retrieval layer is deterministic and must not call LLMs. Plan 06 implements the dense retrieval path only; sparse retrieval, fusion, and reranking are deferred to later plans.
+The retrieval layer is deterministic and must not call LLMs. Plan 06 implements dense retrieval; Plan 07 implements sparse retrieval. Fusion and reranking are deferred to later plans.
+
+### Dense retrieval path
 
 ```text
 SearchQuery (text, top_k)
@@ -61,12 +63,28 @@ VectorStore.search_dense(vector=vector, top_k=query.top_k)
 RetrievalResult(query=query, results=...)
 ```
 
+### Sparse retrieval path
+
+```text
+SearchQuery (text, top_k)
+    ↓
+SparseRetriever.retrieve()
+    ↓
+SparseQueryEmbeddingProvider.embed_query(query.text)
+    ↓
+SparseQueryVector (retrieval-local validation, non-empty enforced)
+    ↓
+VectorStore.search_sparse(indices=..., values=..., top_k=query.top_k)
+    ↓
+RetrievalResult(query=query, results=...)
+```
+
 Future hybrid retrieval will compose dense and sparse leaf retrievers behind a higher orchestrator:
 
 ```text
 Dense Search
       +
-BM25 Search
+Sparse Search (BGE-M3 lexical vectors)
       ↓
 Fusion
       ↓
@@ -78,15 +96,21 @@ Top Context
 | Module | Responsibility |
 | ------ | -------------- |
 | `config.py` | `DenseRetrievalSettings` |
-| `embeddings.py` | `QueryEmbeddingProvider`, `StubQueryEmbeddingProvider` |
+| `embeddings.py` | `QueryEmbeddingProvider`, `StubQueryEmbeddingProvider`, `SparseQueryEmbeddingProvider`, `StubSparseQueryEmbeddingProvider` |
 | `exceptions.py` | Retrieval-specific error types |
 | `dense.py` | `DenseRetriever` orchestration |
+| `sparse_vectors.py` | `SparseQueryVector` (retrieval-local) |
+| `sparse.py` | `SparseRetriever` orchestration |
 
-**Query embedding ownership (ADR-013, ADR-015):** retrieval generates query-path embeddings via `QueryEmbeddingProvider`; indexing generates write-path chunk embeddings; storage generates neither.
+**Query embedding ownership (ADR-013, ADR-015, ADR-019):** retrieval generates query-path dense and sparse embeddings via retrieval-local providers; indexing generates write-path chunk embeddings; storage generates neither.
+
+**Retrieval boundary:** production retrieval code depends on `core` and `storage.protocol.VectorStore` only. Retrieval must **not** import `storage.models`, `qdrant_client`, or indexing packages. Indexing may import `storage.models` for upsert boundary types.
 
 **Public contract:** callers submit `SearchQuery` text and receive `RetrievalResult`. Vectors are internal to retrieval and must not leak to MCP, agent, or other higher layers.
 
-**Dependency rule:** retrieval depends on the `VectorStore` protocol only — not on `qdrant_client`, `StorageSettings`, or other storage modules. See [ADR-014](DECISIONS.md#adr-014-dense-retrieval-boundary) through [ADR-016](DECISIONS.md#adr-016-stub-query-embeddings).
+**Sparse placeholder constraint (ADR-020):** indexing still stores a constant sparse placeholder per ADR-010 until a future sparse indexing plan replaces it. Meaningful sparse retrieval against production-indexed corpora requires that future plan and a full reindex with caller approval. Plan 07 delivers the read path only.
+
+**Dependency rule:** retrieval depends on the `VectorStore` protocol only — not on `qdrant_client`, `StorageSettings`, or other storage modules. See [ADR-014](DECISIONS.md#adr-014-dense-retrieval-boundary) through [ADR-020](DECISIONS.md#adr-020-reindex-requirement-for-future-sparse-migration).
 
 ---
 
@@ -173,12 +197,13 @@ Qdrant
 
 | Module | Responsibility |
 | ------ | -------------- |
-| `protocol.py` | `VectorStore` protocol (five methods: create, delete, exists, upsert, search_dense) |
+| `protocol.py` | `VectorStore` protocol (six methods: create, delete, exists, upsert, search_dense, search_sparse) |
 | `models.py` | `ChunkUpsertItem`, `SparseVector` boundary types |
 | `mapping.py` | Pure payload ↔ domain translation |
 | `collection.py` | Vector names and collection defaults |
 | `config.py` | `StorageSettings` |
-| `qdrant_store.py` | `QdrantVectorStore` implementation and `create_qdrant_vector_store` factory |
+| `qdrant_store.py` | `QdrantVectorStore` implementation, `search_sparse`, and `create_qdrant_vector_store` factory |
+| `validation.py` | Structural validation for sparse search inputs |
 | `exceptions.py` | Storage-specific error types |
 
 Storage receives pre-computed vectors on write and pre-computed query vectors on read. It does not generate embeddings. See [ADR-002](DECISIONS.md#adr-002-vectorstore-protocol-abstraction) through [ADR-006](DECISIONS.md#adr-006-storage-does-not-generate-embeddings).
@@ -236,7 +261,7 @@ Path.read_text → raw source text → title, section_title, LineRange
 
 **Human approval (ADR-012):** `preview_indexing` estimates impact without embeddings or storage writes; callers must obtain approval before `index_documents(..., rebuild=True)`.
 
-**Sparse vectors (ADR-010):** indexing attaches a constant sparse placeholder until Plan 07 provides real BGE-M3 sparse vectors.
+**Sparse vectors (ADR-010, ADR-020):** indexing attaches a constant sparse placeholder until a future sparse indexing plan provides per-chunk BGE-M3 sparse vectors. A full reindex with caller approval will be required when that migration occurs.
 
 ---
 

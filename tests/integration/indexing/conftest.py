@@ -42,6 +42,18 @@ class FakeVectorStore:
         _ = top_k
         return ()
 
+    def search_sparse(
+        self,
+        *,
+        indices: Sequence[int],
+        values: Sequence[float],
+        top_k: int,
+    ) -> tuple[SearchResult, ...]:
+        _ = indices
+        _ = values
+        _ = top_k
+        return ()
+
 
 @pytest.fixture
 def fake_vector_store() -> FakeVectorStore:
