@@ -31,3 +31,20 @@ Established the Python project foundation:
 * documented setup and validation workflow in `README.md`.
 
 Bootstrap validation exception is superseded. All commits must pass the standard quality commands.
+
+---
+
+## 2026-06-21 — Domain Models
+
+**Plan:** [03-domain-models.md](plans/completed/03-domain-models.md)
+
+Established the shared domain model foundation in `knowledge_assistant.core`:
+
+* implemented frozen dataclass domain types for documents, chunks, source attribution, retrieval, and indexing;
+* defined `DocumentId` and `ChunkId` as `NewType` identifiers;
+* implemented `IndexingSourceKind` and `ApprovalStatus` as stdlib enums;
+* added `__post_init__` validation for all domain invariants;
+* exported public API from `core/__init__.py`;
+* added unit tests in `tests/unit/core/` covering construction, validation, and immutability;
+* recorded ADR-001 in `docs/DECISIONS.md`;
+* documented core domain layer in `docs/ARCHITECTURE.md`.

@@ -101,11 +101,30 @@ retrieval → agent
 
 ---
 
+## Core Domain Layer
+
+The `core/` package defines shared domain types used across all layers. Types are immutable frozen dataclasses with `__post_init__` validation (see [ADR-001](DECISIONS.md#adr-001-domain-model-technology)).
+
+| Module | Types |
+| ------ | ----- |
+| `identifiers.py` | `DocumentId`, `ChunkId` |
+| `document.py` | `Document`, `DocumentMetadata`, `DocumentContent` |
+| `chunk.py` | `Chunk`, `ChunkMetadata` |
+| `source.py` | `LineRange`, `SourceReference` |
+| `retrieval.py` | `SearchQuery`, `SearchResult`, `RetrievalResult` |
+| `indexing.py` | `IndexingSourceKind`, `IndexingSource`, `IndexingPreview`, `ApprovalStatus` |
+
+Core models are implementation-agnostic. They must not import from `agent`, `retrieval`, `indexing`, `storage`, `mcp_server`, `llm`, `cli`, or third-party application libraries. Boundary layers translate between domain types and infrastructure-specific schemas.
+
+`SourceReference` is the canonical citation model for user-visible source attribution. It is distinct from `DocumentMetadata` and `ChunkMetadata`, which serve indexing and storage concerns.
+
+---
+
 ## Source Layout
 
 ```text
 src/knowledge_assistant/
-    core/           # shared types, IDs, schemas, errors
+    core/           # shared domain types, IDs, validation
     agent/          # LangGraph agent and graph definitions
     mcp_server/     # Knowledge MCP server
     retrieval/      # hybrid retrieval, fusion, reranking
