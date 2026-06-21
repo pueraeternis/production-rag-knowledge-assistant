@@ -409,9 +409,11 @@ Run all commands from repository root.
 
 ### Bootstrap Validation Exception
 
-Before `pyproject.toml` exists, documentation-only commits are exempt from the quality commands above.
+**Status:** Superseded (Python bootstrap completed — see `docs/PROGRESS.md`).
 
-After Python project initialization is complete, standard validation becomes mandatory for all commits.
+Before `pyproject.toml` existed, documentation-only commits were exempt from the quality commands above.
+
+Standard validation is now mandatory for all commits.
 
 ---
 

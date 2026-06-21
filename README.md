@@ -17,3 +17,28 @@ Additional references:
 * [docs/PROGRESS.md](docs/PROGRESS.md) — development history
 
 Documentation is the source of truth. Implementation follows active plans.
+
+## Python Setup
+
+Requires Python 3.12+ and [uv](https://docs.astral.sh/uv/).
+
+Install dependencies and create the local virtual environment:
+
+```bash
+uv sync
+```
+
+Run all development tools through `uv run`. Do not invoke `pytest`, `ruff`, or `basedpyright` directly.
+
+## Validation
+
+From the repository root, run the full quality suite before committing:
+
+```bash
+uv run ruff format --check .
+uv run ruff check .
+uv run basedpyright
+uv run pytest
+```
+
+Standard validation is mandatory for all commits. The bootstrap validation exception (pre-`pyproject.toml` documentation-only commits) was superseded when [Plan 02 — Python Bootstrap](docs/plans/completed/02-python-bootstrap.md) completed.

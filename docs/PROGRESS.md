@@ -15,4 +15,19 @@ Established repository governance and documentation skeleton:
 * created `docs/` structure with architecture, decisions, and progress documents;
 * documented bootstrap validation exception for pre-Python repository state.
 
-Application code not yet initialized.
+---
+
+## 2026-06-21 — Python Bootstrap
+
+**Plan:** [02-python-bootstrap.md](plans/completed/02-python-bootstrap.md)
+
+Established the Python project foundation:
+
+* created `pyproject.toml` with `src` layout, `uv` configuration, and development dependency groups;
+* generated `uv.lock` with tooling-only dependencies (`ruff`, `basedpyright`, `pytest`);
+* created `src/knowledge_assistant/` package skeleton aligned with `docs/ARCHITECTURE.md`;
+* configured ruff, basedpyright, and pytest;
+* added `tests/unit/`, `tests/integration/`, and `tests/smoke/` layout with package import smoke tests;
+* documented setup and validation workflow in `README.md`.
+
+Bootstrap validation exception is superseded. All commits must pass the standard quality commands.
