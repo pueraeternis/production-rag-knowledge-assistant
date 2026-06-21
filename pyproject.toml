@@ -5,6 +5,8 @@ description = "Educational production-style RAG knowledge assistant"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "llama-index-core>=0.12",
+    "llama-index-readers-file>=0.4",
     "qdrant-client>=1.12",
 ]
 

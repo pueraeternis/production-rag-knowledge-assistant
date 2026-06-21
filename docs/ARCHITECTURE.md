@@ -158,6 +158,61 @@ Storage receives pre-computed vectors on write and pre-computed query vectors on
 
 ---
 
+## Indexing Layer
+
+The `indexing/` package turns local documents into stored chunks via the `VectorStore` protocol. It is the only component that imports LlamaIndex (confined to `llamaindex_adapter.py`). See [ADR-007](DECISIONS.md#adr-007-llamaindex-containment-in-indexing-layer) through [ADR-013](DECISIONS.md#adr-013-embedding-boundary-ownership).
+
+```text
+local file/directory
+    ↓
+LlamaIndex SimpleDirectoryReader (loading)
+    ↓
+loaded document text
+    ↓
+LlamaIndex SentenceSplitter (chunking)
+    ↓
+core domain models
+    ↓
+EmbeddingProvider (write path)
+    ↓
+VectorStore.upsert_chunks
+
+parallel attribution mirror:
+Path.read_text → raw source text → title, section_title, LineRange
+```
+
+| Module | Responsibility |
+| ------ | -------------- |
+| `config.py` | `IndexingSettings` |
+| `documents.py` | Local file discovery (`.md`, `.txt`) |
+| `embeddings.py` | `EmbeddingProvider`, `StubEmbeddingProvider`, sparse placeholder |
+| `exceptions.py` | Indexing-specific error types |
+| `ids.py` | UUID5 `DocumentId` and `ChunkId` generation |
+| `llamaindex_adapter.py` | LlamaIndex load/chunk + raw attribution mirror → domain models (sole LlamaIndex import site) |
+| `pipeline.py` | `IndexingPipeline` with `preview_indexing` and `index_documents` |
+
+**Loading and chunking:** LlamaIndex `SimpleDirectoryReader` owns loading; `SentenceSplitter` owns chunk boundaries. A separate raw file read mirrors on-disk text for source attribution only — it is not the primary loader and does not replace LlamaIndex ingestion.
+
+**Reader contract:** one input file must yield exactly one LlamaIndex document; zero or multiple documents raise `DocumentLoadError`.
+
+**Source attribution:** raw on-disk text is the source of truth for `LineRange`. Character offsets are resolved in indexing code (including overlap-aware lookup) and mapped to 1-based lines. LlamaIndex node metadata is not used for line numbers.
+
+**Empty discovery:** `preview_indexing` may return zero document/chunk counts for empty directories. `index_documents` is a storage no-op when no files are discovered — it does not create, delete, or upsert collections.
+
+**Chunking errors:** file read failures raise `DocumentLoadError`; LlamaIndex splitter failures and empty chunk results raise `ChunkingError`.
+
+**Dependency rule:** indexing depends on the `VectorStore` protocol only — not on `qdrant_client` or `StorageSettings`.
+
+**Embedding ownership (ADR-013):** indexing generates write-path chunk embeddings; retrieval will generate query-path embeddings (Plan 06); storage generates neither.
+
+**ID ownership (ADR-008):** indexing generates deterministic UUID5 document and chunk IDs; storage does not generate IDs.
+
+**Human approval (ADR-012):** `preview_indexing` estimates impact without embeddings or storage writes; callers must obtain approval before `index_documents(..., rebuild=True)`.
+
+**Sparse vectors (ADR-010):** indexing attaches a constant sparse placeholder until Plan 07 provides real BGE-M3 sparse vectors.
+
+---
+
 ## Source Layout
 
 ```text

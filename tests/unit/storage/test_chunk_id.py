@@ -62,6 +62,7 @@ class TestChunkIdPointIdConversion:
         vector_store: QdrantVectorStore,
     ) -> None:
         with pytest.raises(
-            InvalidChunkIdError, match="chunk_id must be a valid UUID string"
+            InvalidChunkIdError,
+            match="chunk_id must be a valid UUID string",
         ):
             vector_store.upsert_chunks((_make_item(chunk_id="not-a-uuid"),))

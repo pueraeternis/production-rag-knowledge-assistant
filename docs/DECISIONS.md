@@ -264,3 +264,247 @@ Embedding generation belongs to the indexing layer (write path) and retrieval la
 | ----------- | ------------ |
 | Embedding generation inside storage | Violates component boundaries; couples persistence to model inference |
 | Query text accepted by `search_dense` | Would require embedding dependencies in storage |
+
+---
+
+### ADR-007: LlamaIndex Containment in Indexing Layer
+
+**Status:** Accepted
+
+**Date:** 2026-06-21
+
+#### Context
+
+Document loading and chunking require a mature ingestion library. The project stack includes LlamaIndex, but external layers must remain independent from LlamaIndex types and metadata schemas.
+
+#### Decision
+
+* Use LlamaIndex for document loading and chunking inside `knowledge_assistant.indexing` only.
+* Load local `.md` and `.txt` files with LlamaIndex `SimpleDirectoryReader` (`input_files=[path]`); a single input file must produce exactly one LlamaIndex document (zero or multiple documents raise `DocumentLoadError`).
+* Chunk loaded document text with LlamaIndex `SentenceSplitter`.
+* Read raw on-disk file text separately as an attribution mirror only (title extraction, section headings, offset lookup, `LineRange`); raw text is authoritative for line numbers, not LlamaIndex node metadata.
+* Confine all LlamaIndex imports to `llamaindex_adapter.py`.
+* Translate LlamaIndex outputs into core domain models before they leave the indexing package.
+* Do not export LlamaIndex types from `indexing/__init__.py`.
+* `knowledge_assistant.core`, `storage`, `retrieval`, `mcp_server`, `agent`, and `llm` must not import LlamaIndex.
+
+#### Consequences
+
+* LlamaIndex API changes are localized to the adapter module.
+* Higher layers work exclusively with project domain types.
+* Tests can mock or bypass the adapter while still validating pipeline orchestration.
+
+#### Alternatives Considered
+
+| Alternative | Why rejected |
+| ----------- | ------------ |
+| Custom loaders/parsers without LlamaIndex | Reinvents chunking; contradicts project technology stack |
+| LlamaIndex types in core domain models | Violates implementation-agnostic core layer per ADR-001 |
+| LlamaIndex types in MCP contracts | Couples knowledge access API to ingestion library |
+
+---
+
+### ADR-008: Deterministic UUID5 ID Generation
+
+**Status:** Accepted
+
+**Date:** 2026-06-21
+
+#### Context
+
+Plan 04 requires `ChunkId` values to be valid UUID strings for Qdrant point ID conversion. IDs must be stable across re-indexing runs so the same source content produces the same identifiers.
+
+#### Decision
+
+* The indexing layer owns ID generation; storage does not generate IDs.
+* Use `uuid.uuid5` exclusively. Do not use `uuid.uuid4` for document or chunk IDs.
+* Define namespace constant `INDEXING_ID_NAMESPACE` in `indexing/ids.py`.
+* **DocumentId:** `UUID5(INDEXING_ID_NAMESPACE, normalized_source_path)` as a string.
+* **ChunkId:** `UUID5(INDEXING_ID_NAMESPACE, f"{document_id}|{chunk_index}|{text_digest}")` where `text_digest` is the lowercase hex SHA-256 digest of stripped chunk text.
+* **Path normalization:** resolve to absolute path, normalize separators to forward slashes.
+* Validate generated IDs are non-empty UUID strings before use.
+
+#### Consequences
+
+* Re-indexing the same file produces identical document and chunk IDs when source text and chunking configuration are unchanged.
+* Content or chunking configuration changes produce new chunk IDs; full reindex is the recovery path.
+* IDs satisfy Plan 04 `InvalidChunkIdError` prevention at upsert time.
+
+#### Alternatives Considered
+
+| Alternative | Why rejected |
+| ----------- | ------------ |
+| Random UUID4 per index run | Breaks idempotent re-indexing; complicates deduplication |
+| Sequential integer IDs | Not UUID-compatible with Qdrant point ID mapping |
+| Content-only hash without document scope | Collisions across different documents with identical chunk text |
+
+---
+
+### ADR-009: EmbeddingProvider Boundary in Indexing Layer
+
+**Status:** Accepted
+
+**Date:** 2026-06-21
+
+#### Context
+
+Storage receives pre-computed vectors and must not generate embeddings (ADR-006). Real BGE-M3 integration is deferred, but the indexing layer needs a stable embedding contract for write-path vector generation.
+
+#### Decision
+
+* Define `EmbeddingProvider` as a `typing.Protocol` in `indexing/embeddings.py`.
+* Provide `StubEmbeddingProvider` for tests and development: hash-based, fixed dimension, no model runtime.
+* `IndexingSettings.dense_vector_size` defaults to `1024`. Callers must configure indexing and storage consistently.
+* Real BAAI/bge-m3 write-path implementation is deferred; it will implement the same protocol.
+* Write-path embedding ownership is further specified in ADR-013.
+
+#### Consequences
+
+* Indexing tests run without GPU or model downloads.
+* Future BGE-M3 indexing integration is a drop-in provider replacement.
+* Query-path embedding ownership belongs to retrieval (ADR-013).
+
+#### Alternatives Considered
+
+| Alternative | Why rejected |
+| ----------- | ------------ |
+| Embedding generation in storage | Violates ADR-006 |
+| Shared `llm/` embedding module | LLM boundary is for model inference calls; embeddings are retrieval/indexing concerns |
+| Hardcoded vectors in pipeline | No reusable contract for future BGE-M3 integration |
+
+---
+
+### ADR-010: Sparse Vector Placeholder Until Sparse Retrieval
+
+**Status:** Accepted
+
+**Date:** 2026-06-21
+
+#### Context
+
+Plan 04 collection schema requires both dense and sparse named vectors on every upsert (ADR-004). Real BGE-M3 sparse vectors and BM25 retrieval are deferred to Plan 07.
+
+#### Decision
+
+* Plan 05 attaches a constant sparse vector placeholder to every chunk at indexing time: `SparseVector(indices=(0,), values=(1.0,))`.
+* The placeholder is valid per storage validation rules, deterministic, and carries no pseudo-lexical representation.
+* Plan 07 replaces the constant with real sparse vectors; full reindex will be required.
+
+#### Consequences
+
+* Upserts satisfy storage schema without model dependencies.
+* Dense retrieval in Plan 06 is unaffected.
+
+#### Alternatives Considered
+
+| Alternative | Why rejected |
+| ----------- | ------------ |
+| Digest-derived pseudo-sparse vectors | Implies lexical structure that does not exist |
+| Empty sparse vectors | Zero-length edge cases; may not exercise storage sparse path |
+| Random sparse vectors per run | Non-deterministic; breaks reproducibility |
+| Defer sparse slot entirely | Would require storage schema change contradicting ADR-004 |
+
+---
+
+### ADR-011: Local File Indexing Scope
+
+**Status:** Accepted
+
+**Date:** 2026-06-21
+
+#### Context
+
+The domain model defines four `IndexingSourceKind` values (Plan 03). The roadmap defers URL indexing to MCP plans. Plan 05 must bound ingestion scope explicitly.
+
+#### Decision
+
+* Plan 05 supports only `IndexingSourceKind.FILE` and `IndexingSourceKind.DIRECTORY`.
+* Supported file extensions: `.md`, `.txt` (case-insensitive).
+* Reject URL source kinds with `UnsupportedSourceKindError`.
+* Reject unsupported extensions with `UnsupportedFileTypeError` on explicit file sources; skip silently during directory walks.
+* `DocumentMetadata.source_uri` remains `None` for local files in Plan 05.
+
+#### Consequences
+
+* MCP URL indexing (Plan 10) will extend discovery without changing core domain enums.
+* Indexing pipeline has a clear, testable local-filesystem boundary.
+
+#### Alternatives Considered
+
+| Alternative | Why rejected |
+| ----------- | ------------ |
+| Implement URL fetching now | Out of Phase 3 scope; MCP plan owns remote sources |
+| Support all text-like extensions | Expands parsing scope without plan authorization |
+| Store `file://` URI in `source_uri` | Unnecessary for local demo; deferred |
+
+---
+
+### ADR-012: Human Approval Enforced by Callers
+
+**Status:** Accepted
+
+**Date:** 2026-06-21
+
+#### Context
+
+`PROJECT.md` requires user confirmation before modifying the index. Plan 04 exposes destructive storage primitives; orchestration must not bypass the approval boundary.
+
+#### Decision
+
+* `IndexingPipeline` implements `preview_indexing(...)` and `index_documents(...)`.
+* The indexing service must not prompt the user or read interactive input.
+* `index_documents(..., rebuild=True)` performs `delete_collection` → `create_collection` → `upsert_chunks`; the caller must obtain approval before invoking rebuild.
+* `preview_indexing` returns `IndexingPreview` with `replaces_existing` from `collection_exists()` only.
+* `ApprovalStatus` remains a core domain type; indexing does not transition approval state.
+
+#### Consequences
+
+* Indexing layer is reusable in automated tests without stdin mocking.
+* MCP and CLI plans own interactive approval UX.
+
+#### Alternatives Considered
+
+| Alternative | Why rejected |
+| ----------- | ------------ |
+| Built-in `input()` approval prompt | Couples library to interactive CLI; untestable in CI |
+| Silent rebuild without preview | Violates human-in-the-loop requirement |
+
+---
+
+### ADR-013: Embedding Boundary Ownership
+
+**Status:** Accepted
+
+**Date:** 2026-06-21
+
+#### Context
+
+Embedding generation appears on both the indexing write path and the retrieval query path. Without explicit ownership, layers could duplicate contracts or blur boundaries.
+
+#### Decision
+
+```text
+Indexing owns write-path embeddings.
+Retrieval owns query-path embeddings.
+Storage owns neither.
+```
+
+* **Indexing** generates embeddings for document chunks before `VectorStore.upsert_chunks`.
+* **Retrieval** generates embeddings for user queries before `VectorStore.search_dense` (Plan 06).
+* **Storage** receives pre-computed vectors only (reinforces ADR-006).
+* Future BAAI/bge-m3 integration must implement compatible provider contracts within respective layers.
+* The `llm/` package is not the embedding owner for either path.
+
+#### Consequences
+
+* Plan 06 can define a retrieval-side query embedding boundary without ambiguity.
+* Storage remains a passive vector store.
+* Preview flows remain side-effect free: embedding runs only on the index path.
+
+#### Alternatives Considered
+
+| Alternative | Why rejected |
+| ----------- | ------------ |
+| Shared embedding module used by indexing and retrieval | Couples read and write paths |
+| Storage generates query embeddings | Violates ADR-006 and component boundaries |
+| Single global `EmbeddingProvider` in `core/` | Pollutes domain layer with infrastructure concerns per ADR-001 |

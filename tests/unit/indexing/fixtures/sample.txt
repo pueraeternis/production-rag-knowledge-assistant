@@ -1,0 +1,3 @@
+First line of plain text.
+Second line of plain text.
+Third line of plain text.

@@ -66,3 +66,24 @@ Established the Qdrant storage boundary in `knowledge_assistant.storage`:
 * added unit tests in `tests/unit/storage/` and integration tests with in-memory Qdrant;
 * recorded ADR-002 through ADR-006 in `docs/DECISIONS.md`;
 * documented storage layer boundary in `docs/ARCHITECTURE.md`.
+
+---
+
+## 2026-06-21 — Indexing Pipeline
+
+**Plan:** [05-indexing-pipeline.md](plans/completed/05-indexing-pipeline.md)
+
+Established the indexing layer in `knowledge_assistant.indexing`:
+
+* implemented local file discovery for `.md` and `.txt` sources;
+* added LlamaIndex adapter confined to `llamaindex_adapter.py` with line attribution from original text;
+* implemented deterministic UUID5 `DocumentId` and `ChunkId` generation;
+* defined `EmbeddingProvider` protocol with `StubEmbeddingProvider` development stub;
+* added constant sparse vector placeholder for storage schema compliance;
+* implemented `IndexingPipeline` with `preview_indexing` and `index_documents` (including rebuild flow);
+* added `llama-index-core` and `llama-index-readers-file` runtime dependencies;
+* added unit tests in `tests/unit/indexing/` and integration tests in `tests/integration/indexing/`;
+* recorded ADR-007 through ADR-013 in `docs/DECISIONS.md`;
+* documented indexing layer boundary in `docs/ARCHITECTURE.md`.
+
+**Revision (post-review):** overlap-aware line attribution; `ChunkingError` for splitter failures; empty-directory `index_documents` storage no-op; LlamaIndex `SimpleDirectoryReader` owns loading with raw on-disk text as attribution mirror only.
