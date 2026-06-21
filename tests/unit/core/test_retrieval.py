@@ -11,7 +11,16 @@ from knowledge_assistant.core.retrieval import (
     SearchQuery,
     SearchResult,
 )
-from knowledge_assistant.core.source import LineRange
+from knowledge_assistant.core.source import LineRange, SourceReference
+
+
+def _make_source() -> SourceReference:
+    return SourceReference(
+        document_title="Guide",
+        document_path="docs/guide.md",
+        section_title="Section",
+        line_range=LineRange(start_line=1, end_line=5),
+    )
 
 
 def _make_chunk(chunk_id: str = "chunk-1", text: str = "chunk text") -> Chunk:
@@ -51,12 +60,12 @@ class TestSearchQuery:
 class TestSearchResult:
     def test_valid_construction(self) -> None:
         chunk = _make_chunk()
-        result = SearchResult(chunk=chunk, score=0.95)
+        result = SearchResult(chunk=chunk, score=0.95, source=_make_source())
         assert result.chunk == chunk
         assert result.score == 0.95
 
     def test_immutability(self) -> None:
-        result = SearchResult(chunk=_make_chunk(), score=0.5)
+        result = SearchResult(chunk=_make_chunk(), score=0.5, source=_make_source())
         with pytest.raises(FrozenInstanceError):
             result.score = 0.9  # type: ignore[misc]
 
@@ -65,8 +74,12 @@ class TestRetrievalResult:
     def test_valid_construction_with_results(self) -> None:
         query = SearchQuery(text="query", top_k=2)
         results = (
-            SearchResult(chunk=_make_chunk("chunk-1"), score=0.9),
-            SearchResult(chunk=_make_chunk("chunk-2"), score=0.8),
+            SearchResult(
+                chunk=_make_chunk("chunk-1"), score=0.9, source=_make_source()
+            ),
+            SearchResult(
+                chunk=_make_chunk("chunk-2"), score=0.8, source=_make_source()
+            ),
         )
         retrieval = RetrievalResult(query=query, results=results)
         assert retrieval.query == query
@@ -80,8 +93,12 @@ class TestRetrievalResult:
     def test_results_length_must_not_exceed_top_k(self) -> None:
         query = SearchQuery(text="query", top_k=1)
         results = (
-            SearchResult(chunk=_make_chunk("chunk-1"), score=0.9),
-            SearchResult(chunk=_make_chunk("chunk-2"), score=0.8),
+            SearchResult(
+                chunk=_make_chunk("chunk-1"), score=0.9, source=_make_source()
+            ),
+            SearchResult(
+                chunk=_make_chunk("chunk-2"), score=0.8, source=_make_source()
+            ),
         )
         with pytest.raises(ValueError, match=r"results length must be <= query.top_k"):
             RetrievalResult(query=query, results=results)

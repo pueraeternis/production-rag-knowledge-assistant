@@ -11,11 +11,20 @@ from knowledge_assistant.core.retrieval import (
     SearchQuery,
     SearchResult,
 )
-from knowledge_assistant.core.source import LineRange
+from knowledge_assistant.core.source import LineRange, SourceReference
 from knowledge_assistant.retrieval.config import FusionRetrievalSettings
 from knowledge_assistant.retrieval.fusion import FusionRetriever, reciprocal_rank_fusion
 
 RRF_K = 60
+
+
+def _make_source() -> SourceReference:
+    return SourceReference(
+        document_title="Guide",
+        document_path="docs/guide.md",
+        section_title="Section",
+        line_range=LineRange(start_line=1, end_line=5),
+    )
 
 
 def _make_chunk(chunk_id: str, text: str = "chunk text") -> Chunk:
@@ -37,7 +46,11 @@ def _make_result(
     *,
     text: str = "chunk text",
 ) -> SearchResult:
-    return SearchResult(chunk=_make_chunk(chunk_id, text=text), score=score)
+    return SearchResult(
+        chunk=_make_chunk(chunk_id, text=text),
+        score=score,
+        source=_make_source(),
+    )
 
 
 def _rrf_term(rank: int, rrf_k: int = RRF_K) -> float:

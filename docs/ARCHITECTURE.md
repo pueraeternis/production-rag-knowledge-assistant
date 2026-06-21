@@ -214,7 +214,7 @@ The `core/` package defines shared domain types used across all layers. Types ar
 | `document.py` | `Document`, `DocumentMetadata`, `DocumentContent` |
 | `chunk.py` | `Chunk`, `ChunkMetadata` |
 | `source.py` | `LineRange`, `SourceReference` |
-| `retrieval.py` | `SearchQuery`, `SearchResult`, `RetrievalResult` |
+| `retrieval.py` | `SearchQuery`, `SearchResult` (with `source: SourceReference`), `RetrievalResult` |
 | `indexing.py` | `IndexingSourceKind`, `IndexingSource`, `IndexingPreview`, `ApprovalStatus` |
 
 Core models are implementation-agnostic. They must not import from `agent`, `retrieval`, `indexing`, `storage`, `mcp_server`, `llm`, `cli`, or third-party application libraries. Boundary layers translate between domain types and infrastructure-specific schemas.
@@ -317,6 +317,53 @@ Path.read_text → raw source text → title, section_title, LineRange
 
 ---
 
+## Knowledge MCP Handler Layer
+
+Plan 10 delivers the knowledge-access boundary as typed handler functions and Pydantic schemas — not MCP SDK transport (deferred to Plan 12 per ADR-034). Tier 2 repository-browse tools (`get_document`, `get_statistics`) are deferred to a follow-up plan.
+
+```text
+MCP Client (Plan 12)
+    ↓
+Knowledge MCP handlers          ← Plan 10
+    ↓
+┌─────────────────────┬──────────────────────┐
+│ Retriever.retrieve  │ IndexingPipeline     │
+│ (RerankRetriever)   │ preview / index      │
+└─────────┬───────────┴──────────┬───────────┘
+          ↓                      ↓
+   retrieval layer         indexing layer
+```
+
+| Module | Responsibility |
+| ------ | -------------- |
+| `config.py` | `McpServerSettings` (handler defaults such as `default_top_k`) |
+| `schemas.py` | Pydantic request/response models only (ADR-033) |
+| `exceptions.py` | `ApprovalRequiredError`, stable error codes |
+| `formatting.py` | Core domain types → Pydantic DTOs |
+| `tools.py` | Tier 1 handlers: `search_documents`, `index_documents_preview`, `index_documents_apply` |
+| `resources.py` | Deferred MCP resource URI documentation |
+| `server.py` | Deferred MCP SDK registration stub (Plan 12) |
+
+**Tier 1 handlers:**
+
+| Handler | Delegates to | Notes |
+| ------- | ------------ | ----- |
+| `search_documents` | `Retriever.retrieve(SearchQuery)` | Returns ranked evidence with citations; does not generate answers |
+| `index_documents_preview` | `IndexingPipeline.preview_indexing` | Never mutates storage |
+| `index_documents_apply` | `IndexingPipeline.index_documents` | Requires `approval_confirmed=True` (ADR-030) |
+
+**Dependency rule (ADR-032):** `mcp_server` production code may depend on `core`, `retrieval.protocol.Retriever`, and `indexing.pipeline.IndexingPipeline` only. It must not import `storage`, `qdrant_client`, concrete retrieval internals, LlamaIndex, LangGraph, OpenAI, `llm/`, or the MCP SDK.
+
+**Production retriever wiring:** inject composed `RerankRetriever(FusionRetriever(...), StubReranker(), ...)` from outside `mcp_server` (CLI bootstrap, Plan 12 wiring, test fixtures).
+
+**Source attribution path (ADR-031):** storage populates `SearchResult.source` from Qdrant payloads at search time via `payload_to_source_reference`. Reranking preserves `source` when rescoring. MCP maps `SearchResult.source` → `SourceReferenceSchema` in `formatting.py` without importing `storage`.
+
+**Score semantics:** `search_documents` passes through `SearchResult.score` unchanged. When production wiring uses `RerankRetriever`, scores are reranker relevance scores (ADR-026) — not comparable to dense, sparse, or RRF scores.
+
+See [ADR-028](DECISIONS.md#adr-028-mcp-server-as-knowledge-boundary) through [ADR-034](DECISIONS.md#adr-034-mcp-handler-layer-without-sdk-runtime).
+
+---
+
 ## Source Layout
 
 ```text
@@ -355,6 +402,8 @@ The system exposes:
 * document path;
 * section title;
 * line range.
+
+`SourceReference` is the canonical citation model. Storage populates `SearchResult.source` at search time (ADR-031). MCP maps `source` to `SourceReferenceSchema` for tool responses. `ChunkMetadata` intentionally holds structural fields only — bibliographic fields are not duplicated on chunk metadata.
 
 ---
 

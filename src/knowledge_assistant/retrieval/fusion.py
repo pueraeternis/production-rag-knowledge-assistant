@@ -47,7 +47,8 @@ def reciprocal_rank_fusion(
     sparse_results: tuple[SearchResult, ...],
     rrf_k: int,
 ) -> tuple[SearchResult, ...]:
-    """Fuse two ranked result lists with RRF.
+    """
+    Fuse two ranked result lists with RRF.
 
     Returns all candidates sorted by fused score.
     """
@@ -72,7 +73,11 @@ def reciprocal_rank_fusion(
             (
                 score,
                 chunk_id,
-                SearchResult(chunk=best_result.chunk, score=score),
+                SearchResult(
+                    chunk=best_result.chunk,
+                    score=score,
+                    source=best_result.source,
+                ),
             ),
         )
 

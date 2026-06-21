@@ -11,9 +11,18 @@ from knowledge_assistant.core.retrieval import (
     SearchQuery,
     SearchResult,
 )
-from knowledge_assistant.core.source import LineRange
+from knowledge_assistant.core.source import LineRange, SourceReference
 from knowledge_assistant.retrieval.config import RerankRetrievalSettings
 from knowledge_assistant.retrieval.rerank import RerankRetriever, StubReranker
+
+
+def _make_source() -> SourceReference:
+    return SourceReference(
+        document_title="Guide",
+        document_path="docs/guide.md",
+        section_title="Section",
+        line_range=LineRange(start_line=1, end_line=5),
+    )
 
 
 def _make_result(chunk_id: str, score: float, *, text: str) -> SearchResult:
@@ -29,6 +38,7 @@ def _make_result(chunk_id: str, score: float, *, text: str) -> SearchResult:
             text=text,
         ),
         score=score,
+        source=_make_source(),
     )
 
 

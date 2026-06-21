@@ -12,10 +12,19 @@ from knowledge_assistant.core.retrieval import (
     SearchQuery,
     SearchResult,
 )
-from knowledge_assistant.core.source import LineRange
+from knowledge_assistant.core.source import LineRange, SourceReference
 from knowledge_assistant.retrieval.config import DenseRetrievalSettings
 from knowledge_assistant.retrieval.dense import DenseRetriever
 from knowledge_assistant.retrieval.exceptions import EmbeddingDimensionError
+
+
+def _make_source() -> SourceReference:
+    return SourceReference(
+        document_title="Guide",
+        document_path="docs/guide.md",
+        section_title="Section",
+        line_range=LineRange(start_line=1, end_line=5),
+    )
 
 
 def _make_chunk(chunk_id: str = "chunk-1", text: str = "chunk text") -> Chunk:
@@ -35,7 +44,11 @@ def _make_search_result(
     chunk_id: str = "chunk-1",
     score: float = 0.9,
 ) -> SearchResult:
-    return SearchResult(chunk=_make_chunk(chunk_id), score=score)
+    return SearchResult(
+        chunk=_make_chunk(chunk_id),
+        score=score,
+        source=_make_source(),
+    )
 
 
 class TestDenseRetriever:

@@ -5,9 +5,18 @@ import pytest
 from knowledge_assistant.core.chunk import Chunk, ChunkMetadata
 from knowledge_assistant.core.identifiers import ChunkId, DocumentId
 from knowledge_assistant.core.retrieval import SearchQuery, SearchResult
-from knowledge_assistant.core.source import LineRange
+from knowledge_assistant.core.source import LineRange, SourceReference
 from knowledge_assistant.retrieval.config import RerankRetrievalSettings
 from knowledge_assistant.retrieval.rerank import StubReranker, stub_rerank_score
+
+
+def _make_source() -> SourceReference:
+    return SourceReference(
+        document_title="Guide",
+        document_path="docs/guide.md",
+        section_title="Section",
+        line_range=LineRange(start_line=1, end_line=5),
+    )
 
 
 def _make_chunk(chunk_id: str, text: str) -> Chunk:
@@ -35,6 +44,7 @@ def _make_result(
             text if text is not None else f"text for {chunk_id}",
         ),
         score=score,
+        source=_make_source(),
     )
 
 
@@ -76,6 +86,27 @@ class TestStubReranker:
         reranked = reranker.rerank(query, candidates)
 
         assert len(reranked) == len(candidates)
+
+    def test_preserves_source_reference(self) -> None:
+        query = SearchQuery(text="python retrieval", top_k=2)
+        source = SourceReference(
+            document_title="Guide",
+            document_path="docs/guide.md",
+            section_title="Overview",
+            line_range=LineRange(start_line=3, end_line=9),
+        )
+        candidates = (
+            SearchResult(
+                chunk=_make_chunk("chunk-a", "python guide"),
+                score=0.9,
+                source=source,
+            ),
+        )
+        reranker = StubReranker()
+
+        reranked = reranker.rerank(query, candidates)
+
+        assert reranked[0].source == source
 
     def test_deterministic_scores_for_same_inputs(self) -> None:
         query = SearchQuery(text="hybrid search fusion", top_k=3)

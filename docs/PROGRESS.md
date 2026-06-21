@@ -159,3 +159,24 @@ Established deterministic reranking orchestration in `knowledge_assistant.retrie
 * documented reranking retrieval path and reranked score semantics in `docs/ARCHITECTURE.md`.
 
 Real `BAAI/bge-reranker-v2-m3` cross-encoder runtime remains deferred to a future plan per ADR-027.
+
+---
+
+## 2026-06-21 — Knowledge MCP Server
+
+**Plan:** [10-knowledge-mcp-server.md](plans/completed/10-knowledge-mcp-server.md)
+
+Established the knowledge-access MCP handler boundary in `knowledge_assistant.mcp_server`:
+
+* implemented Tier 1 handlers — `search_documents`, `index_documents_preview`, `index_documents_apply` — with Pydantic schemas confined to `schemas.py`;
+* added `McpServerSettings`, `ApprovalRequiredError`, and core → Pydantic formatting helpers;
+* enforced human approval gate (`approval_confirmed=True`) before index mutation;
+* added `SearchResult.source: SourceReference` populated by storage at search time; reranking and fusion preserve `source`;
+* added stubs for deferred MCP SDK registration (`server.py`) and Tier 2 resources (`resources.py`);
+* added `pydantic` runtime dependency for MCP schemas only;
+* added unit tests in `tests/unit/mcp_server/` and integration tests in `tests/integration/mcp_server/`;
+* added cross-layer tests for `SearchResult.source` in storage and reranking;
+* recorded ADR-028 through ADR-034 in `docs/DECISIONS.md`;
+* documented MCP handler layer and source attribution path in `docs/ARCHITECTURE.md`.
+
+MCP SDK runtime, Tier 2 browse tools (`get_document`, `get_statistics`), and MCP resources remain deferred per ADR-034.

@@ -5,10 +5,19 @@ from conftest import CountingQueryEmbeddingProvider, FakeVectorStore
 from knowledge_assistant.core.chunk import Chunk, ChunkMetadata
 from knowledge_assistant.core.identifiers import ChunkId, DocumentId
 from knowledge_assistant.core.retrieval import SearchQuery, SearchResult
-from knowledge_assistant.core.source import LineRange
+from knowledge_assistant.core.source import LineRange, SourceReference
 from knowledge_assistant.retrieval.config import DenseRetrievalSettings
 from knowledge_assistant.retrieval.dense import DenseRetriever
 from knowledge_assistant.retrieval.embeddings import StubQueryEmbeddingProvider
+
+
+def _make_source() -> SourceReference:
+    return SourceReference(
+        document_title="Guide",
+        document_path="docs/guide.md",
+        section_title="Section",
+        line_range=LineRange(start_line=1, end_line=5),
+    )
 
 
 def _make_search_result(
@@ -27,6 +36,7 @@ def _make_search_result(
             text="chunk text",
         ),
         score=score,
+        source=_make_source(),
     )
 
 

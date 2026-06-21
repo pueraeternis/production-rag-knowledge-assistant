@@ -1136,3 +1136,175 @@ For identical `query` and `candidates` inputs, reranking output must be **fully 
 | Place cross-encoder in `llm/` | Violates retrieval ownership; reranking is not LLM inference |
 | MCP-owned reranking | Violates component boundaries in `docs/ARCHITECTURE.md` |
 | Skip stub; mock only in tests | Loses deterministic dev path and import-boundary clarity |
+
+---
+
+### ADR-028: MCP Server as Knowledge Boundary
+
+**Status:** Accepted
+
+**Date:** 2026-06-21
+
+#### Context
+
+`PROJECT.md` and `docs/ARCHITECTURE.md` position the Knowledge MCP Server as the system boundary between the agent and the knowledge subsystem. Plans 04–09 delivered storage, indexing, and retrieval. Plan 10 delivers the **handler layer** that higher layers call — not the full transport stack.
+
+#### Decision
+
+* Implement the knowledge boundary in `knowledge_assistant.mcp_server`.
+* Plan 10 delivers **handler functions and schemas** — the stable knowledge-access contract.
+* MCP owns tool handler functions, Pydantic validation, domain mapping, human approval enforcement, and citation DTO mapping.
+* MCP does not own MCP SDK transport, conversation state, retrieval algorithms, chunking, embedding, storage logic, or answer generation.
+* Handlers are thin: validate → map → delegate → map → return.
+
+#### Consequences
+
+* Plan 12 wraps handlers with MCP SDK client/server without changing handler contracts.
+* Handler tests run without MCP SDK or network I/O.
+* The knowledge boundary is testable before agent work begins.
+
+---
+
+### ADR-029: MCP Tools vs Resources Split
+
+**Status:** Accepted
+
+**Date:** 2026-06-21
+
+#### Context
+
+MCP supports tools and resources. Plan 10 must scope what the handler layer defines.
+
+#### Decision
+
+**Plan 10 defines three tool handlers** (Tier 1): `search_documents`, `index_documents_preview`, `index_documents_apply`.
+
+**Deferred** (Tier 2 / Plan 12+): `get_document`, `get_statistics`, MCP resources (`knowledge://…` URIs), MCP SDK tool registration in `server.py`.
+
+When MCP SDK registration is added (Plan 12), Tier 1 handler names and schemas remain stable.
+
+#### Consequences
+
+* Plan 10 scope stays focused on knowledge access.
+* Repository browsing does not block Plan 10 completion.
+
+---
+
+### ADR-030: Human Approval Boundary for Index Modification
+
+**Status:** Accepted
+
+**Date:** 2026-06-21
+
+#### Context
+
+ADR-012 assigns approval enforcement to callers. MCP is the first external-facing caller for indexing.
+
+#### Decision
+
+* Split indexing into `index_documents_preview` (no mutation) and `index_documents_apply` (may mutate storage).
+* `index_documents_apply` requires `approval_confirmed: bool` that must be exactly `True`.
+* When `approval_confirmed is not True`, raise `ApprovalRequiredError` before calling `index_documents`.
+* MCP must not call `input()` or block on interactive stdin.
+
+#### Consequences
+
+* Agents must deliberately approve index mutation.
+* CLI (future) wraps preview → user prompt → apply.
+
+---
+
+### ADR-031: Source Attribution Contract
+
+**Status:** Accepted
+
+**Date:** 2026-06-21
+
+#### Context
+
+`PROJECT.md` requires citations with document title, document path, section title, and line range. `SearchResult` previously carried only `Chunk` + `score`.
+
+#### Decision
+
+* **Do not modify `ChunkMetadata`.**
+* Add `source: SourceReference` to `SearchResult`.
+* Populate `source` in `storage` when constructing `SearchResult` from Qdrant points via `payload_to_source_reference`.
+* `Reranker` implementations preserve `source` when emitting rescored `SearchResult` tuples.
+* Fusion preserves `source` from the best-ranked leaf occurrence when building fused results.
+* MCP `formatting.py` maps `SearchResult.source` → `SourceReferenceSchema`; MCP does not import from `storage`.
+
+#### Consequences
+
+* Full PROJECT.md citations in search responses without indexing churn.
+* Test fixtures across retrieval/storage updated for the new required field.
+
+---
+
+### ADR-032: MCP Dependency Boundaries
+
+**Status:** Accepted
+
+**Date:** 2026-06-21
+
+#### Context
+
+Plan 10 must not violate dependency flow.
+
+#### Decision
+
+**Allowed imports in `mcp_server` production code:** `knowledge_assistant.core.*`, `knowledge_assistant.retrieval.protocol.Retriever`, `knowledge_assistant.indexing.pipeline.IndexingPipeline`, `pydantic` (in `schemas.py` only).
+
+**Forbidden:** `storage`, `qdrant_client`, MCP SDK, LangGraph, OpenAI, LlamaIndex, concrete retrieval internals, `llm/`, `agent/`.
+
+**Assembly rule:** `RerankRetriever` construction lives outside `mcp_server`.
+
+#### Consequences
+
+* Plan 10 MCP package has no storage or transport coupling.
+* Import-boundary tests enforce rules mechanically.
+
+---
+
+### ADR-033: Pydantic Boundary Ownership
+
+**Status:** Accepted
+
+**Date:** 2026-06-21
+
+#### Context
+
+ADR-001 excludes Pydantic from `core`. Plan 10 must prevent schema leakage into lower layers.
+
+#### Decision
+
+* **Pydantic is permitted only in `knowledge_assistant.mcp_server.schemas.py`** (and tests for that module).
+* Handler flow: Pydantic request → core domain type → delegate → core result → Pydantic response.
+* `formatting.py` maps core types to Pydantic response models.
+
+#### Consequences
+
+* Clear boundary: JSON/tool contracts live in MCP; domain logic stays Pydantic-free below.
+
+---
+
+### ADR-034: MCP Handler Layer Without SDK Runtime
+
+**Status:** Accepted
+
+**Date:** 2026-06-21
+
+#### Context
+
+Plan 10 could deliver either handler functions only, or handlers plus a runnable MCP SDK server.
+
+#### Decision
+
+* **Plan 10 implements handler functions and Pydantic schemas only.**
+* **Plan 10 does not add the `mcp` SDK runtime dependency.**
+* `server.py` is a stub documenting deferred SDK registration (target: Plan 12).
+* Plan 12 will add MCP SDK dependency, register Tier 1 handlers, and implement the MCP client in the agent.
+
+#### Consequences
+
+* Plan 10 validation uses direct handler invocation, not MCP subprocess tests.
+* Tier 1 handler signatures are the stable API surface.

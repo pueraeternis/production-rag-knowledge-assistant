@@ -20,6 +20,7 @@ from knowledge_assistant.storage.exceptions import (
 from knowledge_assistant.storage.mapping import (
     chunk_upsert_item_to_payload,
     payload_to_chunk,
+    payload_to_source_reference,
 )
 from knowledge_assistant.storage.models import ChunkUpsertItem
 from knowledge_assistant.storage.validation import validate_sparse_search_input
@@ -131,7 +132,10 @@ class QdrantVectorStore:
                 continue
             chunk_id = _point_id_to_chunk_id(point.id)
             chunk = payload_to_chunk(point.payload, chunk_id=chunk_id)
-            results.append(SearchResult(chunk=chunk, score=point.score))
+            source = payload_to_source_reference(point.payload)
+            results.append(
+                SearchResult(chunk=chunk, score=point.score, source=source),
+            )
         return tuple(results)
 
     def search_sparse(
@@ -163,7 +167,10 @@ class QdrantVectorStore:
                 continue
             chunk_id = _point_id_to_chunk_id(point.id)
             chunk = payload_to_chunk(point.payload, chunk_id=chunk_id)
-            results.append(SearchResult(chunk=chunk, score=point.score))
+            source = payload_to_source_reference(point.payload)
+            results.append(
+                SearchResult(chunk=chunk, score=point.score, source=source),
+            )
         return tuple(results)
 
     def _validate_dense_vector(self, vector: Sequence[float]) -> None:

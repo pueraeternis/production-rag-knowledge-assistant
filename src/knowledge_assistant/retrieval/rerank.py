@@ -64,6 +64,7 @@ class StubReranker:
             SearchResult(
                 chunk=candidate.chunk,
                 score=stub_rerank_score(query.text, candidate.chunk.text),
+                source=candidate.source,
             )
             for candidate in candidates
         ]

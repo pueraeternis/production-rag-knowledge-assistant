@@ -3,6 +3,7 @@
 from dataclasses import dataclass
 
 from knowledge_assistant.core.chunk import Chunk
+from knowledge_assistant.core.source import SourceReference
 
 
 @dataclass(frozen=True, slots=True)
@@ -23,10 +24,11 @@ class SearchQuery:
 
 @dataclass(frozen=True, slots=True)
 class SearchResult:
-    """A single retrieved chunk with ranking score."""
+    """A single retrieved chunk with ranking score and source attribution."""
 
     chunk: Chunk
     score: float
+    source: SourceReference
 
 
 @dataclass(frozen=True, slots=True)
