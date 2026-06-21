@@ -48,3 +48,21 @@ Established the shared domain model foundation in `knowledge_assistant.core`:
 * added unit tests in `tests/unit/core/` covering construction, validation, and immutability;
 * recorded ADR-001 in `docs/DECISIONS.md`;
 * documented core domain layer in `docs/ARCHITECTURE.md`.
+
+---
+
+## 2026-06-21 — Storage Layer
+
+**Plan:** [04-storage-layer.md](plans/completed/04-storage-layer.md)
+
+Established the Qdrant storage boundary in `knowledge_assistant.storage`:
+
+* defined `VectorStore` protocol with five methods (no `search_sparse`);
+* implemented `QdrantVectorStore` with named `dense` and `sparse` vectors;
+* added `ChunkUpsertItem`, `SparseVector`, and payload mapping for nine-field chunk payloads;
+* added `StorageSettings` and `create_qdrant_vector_store` factory;
+* added storage-specific exception types;
+* added `qdrant-client` runtime dependency;
+* added unit tests in `tests/unit/storage/` and integration tests with in-memory Qdrant;
+* recorded ADR-002 through ADR-006 in `docs/DECISIONS.md`;
+* documented storage layer boundary in `docs/ARCHITECTURE.md`.

@@ -4,7 +4,9 @@ version = "0.1.0"
 description = "Educational production-style RAG knowledge assistant"
 readme = "README.md"
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+    "qdrant-client>=1.12",
+]
 
 [dependency-groups]
 dev = [

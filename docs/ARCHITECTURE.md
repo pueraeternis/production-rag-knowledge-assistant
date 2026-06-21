@@ -120,6 +120,44 @@ Core models are implementation-agnostic. They must not import from `agent`, `ret
 
 ---
 
+## Qdrant Storage Layer
+
+The `storage/` package is the only component that imports `qdrant_client`. Indexing and retrieval depend on the `VectorStore` protocol, not on Qdrant APIs directly.
+
+```text
+indexing
+  ↓
+VectorStore (protocol)
+  ↓
+QdrantVectorStore
+  ↓
+Qdrant
+```
+
+```text
+retrieval
+  ↓
+VectorStore (protocol)
+  ↓
+QdrantVectorStore
+  ↓
+Qdrant
+```
+
+| Module | Responsibility |
+| ------ | -------------- |
+| `protocol.py` | `VectorStore` protocol (five methods: create, delete, exists, upsert, search_dense) |
+| `models.py` | `ChunkUpsertItem`, `SparseVector` boundary types |
+| `mapping.py` | Pure payload ↔ domain translation |
+| `collection.py` | Vector names and collection defaults |
+| `config.py` | `StorageSettings` |
+| `qdrant_store.py` | `QdrantVectorStore` implementation and `create_qdrant_vector_store` factory |
+| `exceptions.py` | Storage-specific error types |
+
+Storage receives pre-computed vectors on write and pre-computed query vectors on read. It does not generate embeddings. See [ADR-002](DECISIONS.md#adr-002-vectorstore-protocol-abstraction) through [ADR-006](DECISIONS.md#adr-006-storage-does-not-generate-embeddings).
+
+---
+
 ## Source Layout
 
 ```text
