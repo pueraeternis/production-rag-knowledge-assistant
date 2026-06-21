@@ -125,3 +125,21 @@ Established the sparse retrieval path in `knowledge_assistant.retrieval`:
 * documented sparse retrieval path and future placeholder constraint in `docs/ARCHITECTURE.md`.
 
 Indexing sparse generation and reindex migration remain deferred to a future plan per ADR-020.
+
+---
+
+## 2026-06-21 — Fusion Retrieval
+
+**Plan:** [08-fusion-retrieval.md](plans/completed/08-fusion-retrieval.md)
+
+Established hybrid rank-based fusion in `knowledge_assistant.retrieval`:
+
+* defined retrieval-local `Retriever` protocol for leaf-retriever composition;
+* added `FusionRetrievalSettings` with `rrf_k` and `leaf_top_k_multiplier`;
+* implemented `reciprocal_rank_fusion` pure function with RRF, deduplication, and deterministic tie-breaking;
+* implemented `FusionRetriever` orchestrating dense and sparse leaf retrievers with expanded candidate pools;
+* added unit tests in `tests/unit/retrieval/` and integration tests with `FakeRetriever` in `tests/integration/retrieval/`;
+* recorded ADR-021 through ADR-023 in `docs/DECISIONS.md`;
+* documented fusion retrieval path and fused score semantics in `docs/ARCHITECTURE.md`.
+
+Reranking remains deferred to Plan 09.

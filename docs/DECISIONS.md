@@ -783,3 +783,156 @@ ADR-010 stores a constant sparse placeholder on every chunk. Meaningful sparse r
 | Bundle migration into Plan 07 | Scope expansion; mixes retrieval with indexing |
 | In-place sparse vector patch | Out of scope; adds complexity |
 | Lazy reindex on first sparse query | Violates human-in-the-loop |
+
+---
+
+### ADR-021: Fusion Retrieval Boundary
+
+**Status:** Accepted
+
+**Date:** 2026-06-21
+
+#### Context
+
+Plans 06 and 07 deliver independent dense and sparse leaf retrievers. ADR-004 requires fusion outside Qdrant. The retrieval layer must compose leaf results deterministically without LLM calls, storage changes, or modifications to leaf retriever APIs.
+
+#### Decision
+
+* Hybrid fusion is implemented in `knowledge_assistant.retrieval`.
+* `FusionRetriever` is the public orchestration entry point for fused search.
+* Responsibilities:
+  * accept caller `SearchQuery` (text + final `top_k`);
+  * invoke two leaf `Retriever` instances with an expanded candidate `SearchQuery` (see ADR-023);
+  * extract ranked `SearchResult` tuples from each `RetrievalResult`;
+  * deduplicate by `ChunkId`;
+  * apply Reciprocal Rank Fusion (RRF);
+  * return one `RetrievalResult` with at most `query.top_k` fused hits.
+* `FusionRetriever` must **not** call `VectorStore`, embed queries, or accept vectors.
+* `FusionRetriever` must **not** modify `DenseRetriever` or `SparseRetriever`.
+* Fused `SearchResult.score` values are **RRF fusion scores**, not raw dense or sparse similarity scores.
+* `DenseRetriever` and `SparseRetriever` remain **leaf retrievers** with unchanged public APIs.
+
+#### Consequences
+
+* MCP and agent plans (future) depend on `FusionRetriever.retrieve`, not on fusion internals.
+* Fusion tests use fake leaf retrievers without Qdrant or embedding stubs.
+* Plan 09 reranking composes on top of fused results without changing Plan 08 contracts.
+
+#### Alternatives Considered
+
+| Alternative | Why rejected |
+| ----------- | ------------ |
+| Qdrant `FusionQuery` at storage layer | Violates ADR-004; fusion must live in retrieval |
+| Weighted sum of raw dense/sparse scores | Scores are incomparable across modalities; rank-based fusion is standard and deterministic |
+| Modify `RetrievalResult` to carry per-modality scores | Requires core model changes; out of scope |
+| Single `HybridRetriever` replacing leaf retrievers | Violates composability established in ADR-014 and ADR-017 |
+
+---
+
+### ADR-022: Retriever Protocol for Composition
+
+**Status:** Accepted
+
+**Date:** 2026-06-21
+
+#### Context
+
+Plan 07 deferred a shared retriever protocol to Plan 08. `FusionRetriever` must compose leaf retrievers without hard-coding concrete `DenseRetriever` / `SparseRetriever` classes, enabling test fakes and future orchestrators (reranking) while keeping production wiring obvious.
+
+#### Decision
+
+* Define retrieval-local `Retriever` protocol in `retrieval/protocol.py`:
+
+```python
+class Retriever(Protocol):
+    def retrieve(self, query: SearchQuery) -> RetrievalResult:
+        """Run one retrieval strategy for a search query."""
+        ...
+```
+
+* `FusionRetriever.__init__` accepts two `Retriever` dependencies (`dense_retriever`, `sparse_retriever` by convention).
+* Parameter names document conventional wiring; the protocol does **not** encode modality — any `Retriever` implementation is valid.
+* `DenseRetriever` and `SparseRetriever` satisfy `Retriever` structurally; no inheritance or wrapper required.
+* `FusionRetriever` depends on `Retriever`, not on `VectorStore` or embedding providers.
+
+#### Consequences
+
+* Unit and integration tests inject `FakeRetriever` without subclassing production leaf retrievers.
+* Production assembly passes `DenseRetriever` and `SparseRetriever` instances.
+* Future `RerankRetriever` (Plan 09) can wrap or compose `FusionRetriever` similarly.
+
+#### Alternatives Considered
+
+| Alternative | Why rejected |
+| ----------- | ------------ |
+| Hard dependency on `DenseRetriever` / `SparseRetriever` concrete types | Couples fusion tests to leaf implementation details |
+| Callable protocol `(SearchQuery) -> RetrievalResult` | Less discoverable; inconsistent with `VectorStore` / embedding provider patterns |
+| Single `retrievers: tuple[Retriever, ...]` variadic constructor | Over-general for Plan 08; two-retriever API is clearer for hybrid demo |
+
+---
+
+### ADR-023: Reciprocal Rank Fusion Algorithm
+
+**Status:** Accepted
+
+**Date:** 2026-06-21
+
+#### Context
+
+Dense cosine similarity and sparse dot-product scores are not directly comparable. Production hybrid systems commonly fuse **ranks** rather than raw scores. Fusion must remain deterministic with no model inference.
+
+#### Decision
+
+**Algorithm:** Reciprocal Rank Fusion (RRF).
+
+For each `ChunkId` appearing in one or more leaf ranked lists:
+
+```text
+rrf_score(chunk_id) = Σ  1 / (rrf_k + rank_i)
+```
+
+where:
+
+* the sum is over leaf lists in fixed order (**dense first, sparse second**);
+* `rank_i` is the **1-based** rank of the chunk in list *i*;
+* chunks absent from a list contribute **0** from that list (no imputation);
+* `rrf_k` defaults to `60` (common RRF constant), configurable via `FusionRetrievalSettings`.
+
+**Output ordering:**
+
+1. Sort fused candidates by `rrf_score` descending.
+2. Tie-break equal `rrf_score` by `chunk_id` ascending (lexicographic string order) for deterministic ordering.
+
+**Deduplication:**
+
+* Identity key: `SearchResult.chunk.chunk_id`.
+* Duplicate `ChunkId` within the **same** leaf list: keep the **first (best) rank** only; ignore subsequent occurrences.
+* Duplicate `ChunkId` across **dense and sparse** lists: one fused entry; RRF sums contributions from both ranks.
+* `SearchResult.chunk` payload: use the `Chunk` from the **best-ranked occurrence** across all lists (lowest 1-based rank; dense list wins ties on equal rank because it is processed first).
+
+**Candidate pool:**
+
+* Leaf retrievers receive `SearchQuery(text=query.text, top_k=leaf_top_k)` where `leaf_top_k >= query.top_k`.
+* Default: `leaf_top_k = query.top_k * leaf_top_k_multiplier` with `leaf_top_k_multiplier = 2` (see `FusionRetrievalSettings`).
+* Final fused output is truncated to `query.top_k`.
+
+**Score semantics after fusion:**
+
+* `SearchResult.score` = computed `rrf_score`.
+* Fused scores are **not comparable** to leaf retriever scores or to reranker scores (Plan 09).
+* Original dense/sparse scores are **not preserved** in Plan 08 output.
+
+#### Consequences
+
+* Fusion behavior is fully testable with hand-computed RRF expectations.
+* Expanding the leaf candidate pool improves recall for chunks ranked low in one modality but high in another.
+* Operators can tune `rrf_k` and `leaf_top_k_multiplier` without code changes.
+
+#### Alternatives Considered
+
+| Alternative | Why rejected |
+| ----------- | ------------ |
+| Weighted linear combination of raw scores | Requires score normalization; fragile across backends |
+| CombSUM / CombMNZ on ranks | Less common in modern hybrid RAG; RRF is lecture-aligned |
+| Preserve dense score when sparse rank missing | Requires core model extension; deferred |
+| Use `query.top_k` unchanged for leaf retrievers | Reduces fusion benefit when modalities disagree on tail ranks |

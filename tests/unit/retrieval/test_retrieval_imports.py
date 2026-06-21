@@ -74,3 +74,15 @@ def test_retrieval_modules_do_not_import_agent_mcp_or_llm() -> None:
         content = path.read_text(encoding="utf-8")
         for pattern in forbidden_patterns:
             assert pattern not in content, f"{path.name} must not import {pattern}"
+
+
+def test_fusion_modules_do_not_import_storage() -> None:
+    fusion_modules = (
+        Path("src/knowledge_assistant/retrieval/fusion.py"),
+        Path("src/knowledge_assistant/retrieval/protocol.py"),
+    )
+    forbidden = "knowledge_assistant.storage"
+
+    for path in fusion_modules:
+        content = path.read_text(encoding="utf-8")
+        assert forbidden not in content, f"{path.name} must not import storage"

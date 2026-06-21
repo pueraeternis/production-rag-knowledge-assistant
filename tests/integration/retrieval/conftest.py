@@ -4,12 +4,29 @@ from collections.abc import Sequence
 
 import pytest
 
-from knowledge_assistant.core.retrieval import SearchResult
+from knowledge_assistant.core.retrieval import (
+    RetrievalResult,
+    SearchQuery,
+    SearchResult,
+)
 from knowledge_assistant.retrieval.embeddings import (
     QueryEmbeddingVector,
     StubQueryEmbeddingProvider,
+    StubSparseQueryEmbeddingProvider,
 )
 from knowledge_assistant.storage.models import ChunkUpsertItem
+
+
+class FakeRetriever:
+    """Configurable leaf retriever fake that records the last SearchQuery."""
+
+    def __init__(self, *, return_value: RetrievalResult) -> None:
+        self._return_value = return_value
+        self.last_query: SearchQuery | None = None
+
+    def retrieve(self, query: SearchQuery) -> RetrievalResult:
+        self.last_query = query
+        return self._return_value
 
 
 class FakeVectorStore:
@@ -72,10 +89,6 @@ class CountingSparseQueryEmbeddingProvider:
     """Records embed_query calls via StubSparseQueryEmbeddingProvider."""
 
     def __init__(self) -> None:
-        from knowledge_assistant.retrieval.embeddings import (
-            StubSparseQueryEmbeddingProvider,
-        )
-
         self._stub = StubSparseQueryEmbeddingProvider()
         self.embed_query_call_count = 0
 
