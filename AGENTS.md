@@ -243,3 +243,13 @@ When code and documentation disagree:
 * update documentation if the architectural change is intentional.
 
 Never leave the repository in an inconsistent state.
+
+---
+
+## Roadmap
+
+For long-term project direction see:
+
+docs/plans/backlog/ROADMAP.md
+
+The roadmap is informational only and does not authorize implementation.

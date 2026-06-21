@@ -1,14 +1,16 @@
 # Plan 01 — Project Bootstrap
 
-**Status:** Active
+**Status:** Completed
 
 **Created:** 2026-06-21
+
+**Completed:** 2026-06-21
 
 ---
 
 ## Objective
 
-Establish repository governance, documentation structure, and project bootstrap foundations so that subsequent implementation work can proceed in a documentation-driven, agent-legible manner.
+Establish repository governance and documentation structure so that subsequent implementation work can proceed in a documentation-driven, agent-legible manner.
 
 ---
 
@@ -18,8 +20,7 @@ This plan authorizes:
 
 * repository governance alignment (AGENTS.md, PROJECT.md, README.md, `.cursor/rules/`);
 * documentation skeleton (`docs/ARCHITECTURE.md`, `docs/DECISIONS.md`, `docs/PROGRESS.md`, plan directories);
-* repository bootstrap validation rules (pre-Python exception);
-* future Python project initialization (`pyproject.toml`, package layout, `uv` tooling, quality tooling configuration).
+* repository bootstrap validation rules (pre-Python exception).
 
 ---
 
@@ -27,6 +28,7 @@ This plan authorizes:
 
 This plan does **not** authorize:
 
+* Python project initialization (`pyproject.toml`, package layout, `uv` tooling, quality tooling configuration);
 * application implementation;
 * LangGraph agent implementation;
 * MCP server implementation;
@@ -37,6 +39,8 @@ This plan does **not** authorize:
 * CLI chat functionality;
 * document corpus generation;
 * evaluation suites.
+
+Python bootstrap is authorized by [Plan 02 — Python Bootstrap](../active/02-python-bootstrap.md).
 
 ---
 
@@ -49,7 +53,6 @@ This plan does **not** authorize:
 - [x] Bootstrap validation exception documented wherever validation is required
 - [x] README.md points contributors to governance and documentation entry points
 - [x] PROJECT.md has no duplicate headings or structural inconsistencies
-- [ ] Python project initialization completed in a follow-up increment (future work under this plan)
 
 ---
 
@@ -58,7 +61,7 @@ This plan does **not** authorize:
 | Risk | Mitigation |
 | ---- | ---------- |
 | Governance documents drift out of sync | Single precedence order and read-first order enforced across all files |
-| Contributors run validation before Python bootstrap | Documented bootstrap validation exception |
+| Contributors run validation before Python project exists | Documented bootstrap validation exception |
 | Scope creep into application code | Explicit non-scope section; implementation requires future plans |
 | Incomplete architecture documentation | ARCHITECTURE.md provides high-level outline aligned with PROJECT.md |
 
@@ -71,7 +74,6 @@ This plan does **not** authorize:
 3. Document bootstrap validation exception.
 4. Update README as repository entry point.
 5. Clean up PROJECT.md structure.
-6. Initialize Python project (`pyproject.toml`, `src/knowledge_assistant/`, quality tooling) — future increment.
 
 ---
 
@@ -95,11 +97,3 @@ This plan does **not** authorize:
 
 - [x] Update `README.md`
 - [x] Clean up `PROJECT.md`
-
-### Python Bootstrap (Future Increment)
-
-- [ ] Create `pyproject.toml` with `uv` configuration
-- [ ] Create `src/knowledge_assistant/` package skeleton
-- [ ] Configure ruff, basedpyright, and pytest
-- [ ] Add initial validation to CI (if applicable)
-- [ ] Mark bootstrap validation exception as no longer applicable
