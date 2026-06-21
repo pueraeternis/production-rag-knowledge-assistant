@@ -180,3 +180,23 @@ Established the knowledge-access MCP handler boundary in `knowledge_assistant.mc
 * documented MCP handler layer and source attribution path in `docs/ARCHITECTURE.md`.
 
 MCP SDK runtime, Tier 2 browse tools (`get_document`, `get_statistics`), and MCP resources remain deferred per ADR-034.
+
+---
+
+## 2026-06-21 — LLM Boundary
+
+**Plan:** [11-llm-boundary.md](plans/completed/11-llm-boundary.md)
+
+Established the OpenAI-compatible model invocation layer in `knowledge_assistant.llm`:
+
+* implemented chat-oriented `LLMClient` protocol with sync, non-streaming `chat(...)` entry point;
+* added frozen dataclass DTOs: `ChatMessage`, `ChatRole`, `ToolDefinition`, `ToolCall`, `GenerationSettings`, `GenerationResult`, `TokenUsage`;
+* added `LlmSettings.from_env()` and committed `.env.example` with six `LLM_*` variables;
+* implemented `OpenAICompatibleLLMClient` with httpx transport confined to `openai_client.py`;
+* implemented `StubLLMClient` for deterministic scripted responses in tests;
+* added typed exception hierarchy: `LLMError`, `LLMTimeoutError`, `LLMAuthenticationError`, `LLMResponseError`, `LLMTransportError`;
+* added unit tests in `tests/unit/llm/` and integration tests in `tests/integration/llm/` with mocked HTTP;
+* added import-boundary tests enforcing layer isolation;
+* added `httpx` runtime dependency;
+* recorded ADR-035 through ADR-041 in `docs/DECISIONS.md`;
+* documented LLM boundary in `docs/ARCHITECTURE.md`.

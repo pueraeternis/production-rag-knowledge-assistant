@@ -5,6 +5,7 @@ description = "Educational production-style RAG knowledge assistant"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "httpx>=0.28",
     "llama-index-core>=0.12",
     "llama-index-readers-file>=0.4",
     "pydantic>=2.0",

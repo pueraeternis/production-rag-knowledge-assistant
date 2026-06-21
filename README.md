@@ -42,3 +42,43 @@ uv run pytest
 ```
 
 Standard validation is mandatory for all commits. The bootstrap validation exception (pre-`pyproject.toml` documentation-only commits) was superseded when [Plan 02 — Python Bootstrap](docs/plans/completed/02-python-bootstrap.md) completed.
+
+## Local LLM Setup
+
+Plan 11 provides an OpenAI-compatible LLM boundary for chat completions. For local development against vLLM or another compatible gateway:
+
+1. Copy the environment template:
+
+```bash
+cp .env.example .env
+```
+
+2. Edit `.env` and set at minimum:
+
+| Variable | Purpose |
+| -------- | ------- |
+| `LLM_BASE_URL` | OpenAI-compatible base URL (e.g. `http://localhost:8000/v1`) |
+| `LLM_API_KEY` | Bearer token (vLLM often accepts `local`) |
+| `LLM_MODEL` | Model name served by the endpoint |
+
+Optional generation defaults: `LLM_TEMPERATURE`, `LLM_MAX_TOKENS`, `LLM_TIMEOUT_SECONDS`.
+
+3. Optional manual connectivity check (not run in CI):
+
+```python
+from knowledge_assistant.llm import (
+    ChatMessage,
+    ChatRole,
+    LlmSettings,
+    OpenAICompatibleLLMClient,
+)
+
+settings = LlmSettings.from_env()
+client = OpenAICompatibleLLMClient(settings)
+result = client.chat(
+    (ChatMessage(role=ChatRole.USER, content="Reply with the word ok."),),
+)
+print(result.content)
+```
+
+Load `.env` into your shell before calling `from_env()` (for example with your shell or process manager). The library does not load `.env` at runtime.

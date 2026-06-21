@@ -1308,3 +1308,227 @@ Plan 10 could deliver either handler functions only, or handlers plus a runnable
 
 * Plan 10 validation uses direct handler invocation, not MCP subprocess tests.
 * Tier 1 handler signatures are the stable API surface.
+
+---
+
+### ADR-035: OpenAI-Compatible API Standard
+
+**Status:** Accepted
+
+**Date:** 2026-06-21
+
+#### Context
+
+The project targets vLLM serving `Qwen/Qwen3.6-35B-A3B` via base URL but must remain provider-neutral. Multiple gateways expose the same HTTP contract.
+
+#### Decision
+
+* Standardize on an **OpenAI-compatible** `/v1/chat/completions` style API for model invocation.
+* `OpenAICompatibleLLMClient` posts JSON to `{base_url}/chat/completions`.
+* The same `LLMClient` protocol must work against vLLM, OpenAI, LiteLLM, Open WebUI proxy, and other OpenAI-compatible gateways.
+* Provider-specific behavior stays inside `openai_client.py`.
+* Non-streaming JSON responses only in Plan 11.
+
+#### Consequences
+
+* Local development copies `.env.example` → `.env` and points `LLM_BASE_URL` at a vLLM instance.
+* Switching providers requires config changes only — no code changes in higher layers.
+
+#### Alternatives Considered
+
+| Alternative | Why rejected |
+| ----------- | ------------ |
+| Provider-native SDK protocols | Out of project scope |
+| Raw text `/v1/completions` API | Plan 12 needs multi-turn chat and tool messages |
+| LangChain / LangGraph LLM wrappers inside `llm/` | Couples boundary to agent framework |
+
+---
+
+### ADR-036: LLM Boundary Ownership
+
+**Status:** Accepted
+
+**Date:** 2026-06-21
+
+#### Context
+
+ADR-013 assigns embeddings to indexing and retrieval. ADR-027 assigns reranking to retrieval. ADR-032 forbids `mcp_server → llm`. Only the LangGraph agent may communicate with the LLM boundary.
+
+#### Decision
+
+* `knowledge_assistant.llm` owns **model invocation only**: protocol, transport DTOs, settings, HTTP adapter, stub client, and LLM-specific exceptions.
+* `llm/` does **not** own retrieval, indexing, storage, MCP handlers, agent workflows, prompt templates, query rewriting, RAG context assembly, tool execution, embeddings, or reranking.
+* Only `agent` (Plan 12) and `cli` (wiring) are expected consumers of `llm/`.
+* `mcp_server`, `retrieval`, `indexing`, and `storage` must not import `llm/`.
+
+#### Consequences
+
+* Plan 12 composes `LLMClient` + MCP client without redesigning Plan 11 contracts.
+* The seam after Plan 10 remains: MCP returns evidence; agent + LLM produce answers.
+
+#### Alternatives Considered
+
+| Alternative | Why rejected |
+| ----------- | ------------ |
+| Shared `llm/` module for embeddings + chat | Violates ADR-013 |
+| MCP calls LLM for answer synthesis | Violates ADR-032 |
+| RAG prompts in `llm/` | Encodes product behavior in wrong layer |
+
+---
+
+### ADR-037: Chat-First LLM Client Protocol
+
+**Status:** Accepted
+
+**Date:** 2026-06-21
+
+#### Context
+
+Plan 12 requires multi-turn conversation, system/user/assistant/tool roles, and model-emitted tool calls. A completion-only API would force redesign.
+
+#### Decision
+
+* Expose a **chat-oriented** `LLMClient.chat(...)` API as the sole entry point.
+* `messages` is an immutable tuple; callers append per turn — the client does not mutate conversation state.
+* `settings=None` merges per-call overrides with `LlmSettings` defaults.
+* `tools=()` means no tools sent to the provider.
+* Sync-first, non-streaming only in Plan 11.
+
+#### Consequences
+
+* Plan 12 LangGraph nodes call `chat` repeatedly as the conversation grows.
+* Tool-calling orchestration stays in the agent.
+
+#### Alternatives Considered
+
+| Alternative | Why rejected |
+| ----------- | ------------ |
+| Separate `complete(prompt: str)` method | Duplicates chat; encourages prompt strings in wrong layer |
+| Async-only protocol | Existing codebase is sync; premature for Plan 11 |
+| Streaming `chat` | Not required for CLI demo v1 |
+
+---
+
+### ADR-038: Tool-Call Transport DTOs Without Orchestration
+
+**Status:** Accepted
+
+**Date:** 2026-06-21
+
+#### Context
+
+OpenAI-compatible chat completions expose tool definitions in the request and `tool_calls` in the response. Plan 12 must pass MCP tool schemas to the model. Plan 11 must not execute tools.
+
+#### Decision
+
+* Plan 11 defines typed **transport DTOs** only: `ToolDefinition`, `ToolCall`.
+* `GenerationResult` includes `tool_calls: tuple[ToolCall, ...]`.
+* `ChatMessage` supports `role=tool` with `tool_call_id`.
+* Mapping to/from provider JSON lives in `openai_client.py` only.
+* Plan 11 must not execute tools, validate tool arguments against MCP contracts, or implement agent tool loops.
+
+#### Consequences
+
+* Plan 12 owns MCP tool schema construction and handler dispatch.
+
+#### Alternatives Considered
+
+| Alternative | Why rejected |
+| ----------- | ------------ |
+| Defer tool DTOs to Plan 12 | Would require Plan 11 API redesign |
+| Pydantic models for tool schemas in `llm/` | Unnecessary; dataclass + dict suffices |
+| Tool execution inside `openai_client.py` | Violates MCP and agent ownership |
+
+---
+
+### ADR-039: LLM-Local Types and Dataclass Boundary
+
+**Status:** Accepted
+
+**Date:** 2026-06-21
+
+#### Context
+
+ADR-001 excludes Pydantic from `core`. ADR-033 confines Pydantic to `mcp_server/schemas.py`. `ChatMessage` is infrastructure transport data, not knowledge domain data.
+
+#### Decision
+
+* All Plan 11 DTOs use `@dataclass(frozen=True, slots=True)` with `__post_init__` validation.
+* DTOs live in `llm/` — not in `knowledge_assistant.core`.
+* Plan 11 does not add Pydantic to `llm/`.
+* Validation errors raise `ValueError` at construction time.
+
+#### Consequences
+
+* Clear separation: `core` = knowledge domain; `llm` = model transport.
+* Plan 12 translates between MCP Pydantic schemas and LLM dataclasses at the agent boundary.
+
+#### Alternatives Considered
+
+| Alternative | Why rejected |
+| ----------- | ------------ |
+| `ChatMessage` in `core` | Not knowledge domain; couples domain to OpenAI message shape |
+| Pydantic in `llm/schemas.py` | No strong justification |
+| TypedDict messages | No runtime validation |
+
+---
+
+### ADR-040: Environment Configuration for LLM Settings
+
+**Status:** Accepted
+
+**Date:** 2026-06-21
+
+#### Context
+
+Initial runtime uses vLLM with user-supplied base URL and credentials via `.env`. Generation defaults must be validated and separable from per-call overrides.
+
+#### Decision
+
+* Commit `.env.example` at repository root with `LLM_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL`, `LLM_TEMPERATURE`, `LLM_MAX_TOKENS`, `LLM_TIMEOUT_SECONDS`.
+* Implement `LlmSettings.from_env()` using `os.environ.get` — no `python-dotenv` runtime dependency.
+* Per-call `GenerationSettings` fields override `LlmSettings.default_generation` and `default_model` in merge logic.
+* `.env` remains gitignored; `.env.example` is committed.
+
+#### Consequences
+
+* README documents copy `.env.example` → `.env` for local vLLM setup.
+* Tests construct `LlmSettings(...)` directly without reading environment.
+
+#### Alternatives Considered
+
+| Alternative | Why rejected |
+| ----------- | ------------ |
+| `python-dotenv` in library code | Hidden magic; tests use explicit settings |
+| Pydantic `BaseSettings` | Unnecessary dependency for six variables |
+| Single flat settings object | Plan 12 needs per-turn overrides |
+
+---
+
+### ADR-041: Embeddings and Reranking Remain Outside LLM
+
+**Status:** Accepted
+
+**Date:** 2026-06-21
+
+#### Context
+
+ADR-013 establishes embedding ownership for indexing and retrieval. ADR-027 places cross-encoder reranking in retrieval. A regression could add embedding helpers to `llm/` because “models live near LLMs.”
+
+#### Decision
+
+* `llm/` must **not** implement embeddings, sparse vectors, or reranking.
+* `llm/` must not import `knowledge_assistant.retrieval` or `knowledge_assistant.indexing`.
+* Import-boundary tests forbid embedding/reranker package names in `llm/`.
+* Plan 11 documentation cross-links ADR-013 and ADR-027.
+
+#### Consequences
+
+* Embedding and reranker runtimes remain in their owning layers per existing ADRs.
+
+#### Alternatives Considered
+
+| Alternative | Why rejected |
+| ----------- | ------------ |
+| Shared `models/` package for all ML inference | Premature; violates layer ownership |
+| Reranker in `llm/` | ADR-027 explicitly rejects this |

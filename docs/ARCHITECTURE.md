@@ -364,6 +364,45 @@ See [ADR-028](DECISIONS.md#adr-028-mcp-server-as-knowledge-boundary) through [AD
 
 ---
 
+## LLM Boundary
+
+Plan 11 delivers the OpenAI-compatible model invocation layer in `knowledge_assistant.llm`. The LangGraph agent (Plan 12) is the primary consumer; the layer does not assemble RAG prompts, execute tools, or call retrieval, indexing, MCP, or storage.
+
+```text
+LangGraph Agent (Plan 12)
+    ↓
+LLMClient.chat(messages, settings?, tools?)
+    ↓
+OpenAICompatibleLLMClient
+    ↓
+POST {base_url}/chat/completions
+    ↓
+vLLM / OpenAI / LiteLLM / Open WebUI / other gateway
+```
+
+| Module | Responsibility |
+| ------ | -------------- |
+| `protocol.py` | `LLMClient` chat protocol |
+| `messages.py` | `ChatMessage`, `ChatRole`, `ToolDefinition`, `ToolCall`, `GenerationResult`, `TokenUsage` |
+| `config.py` | `LlmSettings`, `GenerationSettings`, `from_env()` loader |
+| `exceptions.py` | `LLMError` hierarchy |
+| `openai_client.py` | `OpenAICompatibleLLMClient` (httpx transport) |
+| `stub_client.py` | `StubLLMClient` for deterministic tests |
+
+**Protocol:** sync, chat-first, non-streaming. Callers pass an immutable `messages` tuple; the client does not mutate conversation state. Optional `GenerationSettings` merge with `LlmSettings` defaults per call. `tools=()` omits the tools key from the provider request.
+
+**Tool-call transport:** Plan 11 defines `ToolDefinition` and `ToolCall` DTOs only. Tool schema construction, MCP handler dispatch, and tool execution loops belong to the agent (Plan 12).
+
+**Configuration:** copy `.env.example` → `.env` and set `LLM_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL`, and optional generation defaults. `LlmSettings.from_env()` reads `LLM_*` variables; tests construct settings explicitly.
+
+**Embeddings and reranking (ADR-013, ADR-027, ADR-041):** `llm/` must not implement embeddings, sparse vectors, or reranking. Write-path embeddings belong to indexing; query-path embeddings and cross-encoder reranking belong to retrieval.
+
+**Dependency rule:** only `agent` and `cli` may import `llm/` in the documented architecture. `mcp_server`, `retrieval`, `indexing`, and `storage` must not import `llm/`. Production code in `llm/` depends on the Python standard library, `httpx` (confined to `openai_client.py`), and internal `knowledge_assistant.llm` modules only.
+
+See [ADR-035](DECISIONS.md#adr-035-openai-compatible-api-standard) through [ADR-041](DECISIONS.md#adr-041-embeddings-and-reranking-remain-outside-llm).
+
+---
+
 ## Source Layout
 
 ```text
