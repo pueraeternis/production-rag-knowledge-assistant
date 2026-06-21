@@ -23,6 +23,10 @@ Documentation is the source of truth. Implementation follows active plans.
 
 Plan 12 delivers the LangGraph agent in `knowledge_assistant.agent` — graph routing, MCP tool adapters, RAG prompts, and `run_turn` for conversational turns. CLI wiring remains a future plan. See [Plan 12](docs/plans/completed/12-langgraph-agent.md) and [docs/PROGRESS.md](docs/PROGRESS.md).
 
+## Retrieval Evaluation
+
+Plan 13 delivers the retrieval evaluation layer in `knowledge_assistant.evaluation` — benchmark loading, Hit Rate@K / Recall@K / MRR metrics, `EvaluationRunner`, and multi-strategy `ComparisonReport` assembly. The committed benchmark lives under `data/evaluation/`. See [Plan 13](docs/plans/completed/13-evaluation-framework.md) and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+
 ## Python Setup
 
 Requires Python 3.12+ and [uv](https://docs.astral.sh/uv/).

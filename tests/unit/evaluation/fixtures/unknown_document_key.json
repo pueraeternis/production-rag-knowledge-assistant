@@ -1,0 +1,15 @@
+{
+  "dataset_id": "unknown_key_dataset",
+  "documents": {
+    "policy-a": {
+      "path": "knowledge/policies/policy_a.md"
+    }
+  },
+  "cases": [
+    {
+      "case_id": "case-1",
+      "question": "Unknown key question",
+      "expected_document_key": "missing-key"
+    }
+  ]
+}

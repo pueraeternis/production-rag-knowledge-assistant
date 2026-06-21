@@ -1,0 +1,380 @@
+{
+  "dataset_id": "retrieval_benchmark_v1",
+  "description": "Retrieval benchmark targeting the synthetic corporate knowledge base. Document-level relevance labels use benchmark-local keys mapped to planned corpus paths under knowledge/.",
+  "corpus_version": "v1",
+  "documents": {
+    "remote-work-policy": {
+      "path": "knowledge/policies/remote_work_policy.md"
+    },
+    "onboarding-policy": {
+      "path": "knowledge/policies/onboarding_policy.md"
+    },
+    "travel-policy": {
+      "path": "knowledge/policies/travel_policy.md"
+    },
+    "security-policy": {
+      "path": "knowledge/policies/security_policy.md"
+    },
+    "equipment-policy": {
+      "path": "knowledge/policies/equipment_policy.md"
+    },
+    "expense-policy": {
+      "path": "knowledge/policies/expense_policy.md"
+    },
+    "incident-response": {
+      "path": "knowledge/procedures/incident_response.md"
+    }
+  },
+  "cases": [
+    {
+      "case_id": "remote-work-policy-01",
+      "question": "What are the eligibility requirements for remote work?",
+      "expected_document_key": "remote-work-policy"
+    },
+    {
+      "case_id": "remote-work-policy-02",
+      "question": "Can employees work from another country while employed remotely?",
+      "expected_document_key": "remote-work-policy"
+    },
+    {
+      "case_id": "remote-work-policy-03",
+      "question": "How many days per week can staff work from home?",
+      "expected_document_key": "remote-work-policy"
+    },
+    {
+      "case_id": "remote-work-policy-04",
+      "question": "What equipment must remote employees use for video meetings?",
+      "expected_document_key": "remote-work-policy"
+    },
+    {
+      "case_id": "remote-work-policy-05",
+      "question": "Who approves a permanent remote work arrangement?",
+      "expected_document_key": "remote-work-policy"
+    },
+    {
+      "case_id": "remote-work-policy-06",
+      "question": "What is the policy on working from a coworking space?",
+      "expected_document_key": "remote-work-policy"
+    },
+    {
+      "case_id": "remote-work-policy-07",
+      "question": "Are there core hours employees must be available when remote?",
+      "expected_document_key": "remote-work-policy"
+    },
+    {
+      "case_id": "remote-work-policy-08",
+      "question": "How does the company handle time zone differences for remote staff?",
+      "expected_document_key": "remote-work-policy"
+    },
+    {
+      "case_id": "remote-work-policy-09",
+      "question": "What internet bandwidth is required for remote work?",
+      "expected_document_key": "remote-work-policy"
+    },
+    {
+      "case_id": "remote-work-policy-10",
+      "question": "Can contractors request remote work under this policy?",
+      "expected_document_key": "remote-work-policy"
+    },
+    {
+      "case_id": "onboarding-policy-01",
+      "question": "What happens during the first day of employee onboarding?",
+      "expected_document_key": "onboarding-policy"
+    },
+    {
+      "case_id": "onboarding-policy-02",
+      "question": "How long is the probation period for new hires?",
+      "expected_document_key": "onboarding-policy"
+    },
+    {
+      "case_id": "onboarding-policy-03",
+      "question": "Who is assigned as a buddy for new employees?",
+      "expected_document_key": "onboarding-policy"
+    },
+    {
+      "case_id": "onboarding-policy-04",
+      "question": "What training must be completed in the first week?",
+      "expected_document_key": "onboarding-policy"
+    },
+    {
+      "case_id": "onboarding-policy-05",
+      "question": "When do new hires receive their equipment?",
+      "expected_document_key": "onboarding-policy"
+    },
+    {
+      "case_id": "onboarding-policy-06",
+      "question": "What documents must new employees sign during onboarding?",
+      "expected_document_key": "onboarding-policy"
+    },
+    {
+      "case_id": "onboarding-policy-07",
+      "question": "How is role-specific training scheduled for new hires?",
+      "expected_document_key": "onboarding-policy"
+    },
+    {
+      "case_id": "onboarding-policy-08",
+      "question": "What is the onboarding checklist for managers?",
+      "expected_document_key": "onboarding-policy"
+    },
+    {
+      "case_id": "onboarding-policy-09",
+      "question": "When are payroll and benefits activated for new staff?",
+      "expected_document_key": "onboarding-policy"
+    },
+    {
+      "case_id": "onboarding-policy-10",
+      "question": "How are access credentials provisioned for new employees?",
+      "expected_document_key": "onboarding-policy"
+    },
+    {
+      "case_id": "travel-policy-01",
+      "question": "What class of airfare is approved for domestic business travel?",
+      "expected_document_key": "travel-policy"
+    },
+    {
+      "case_id": "travel-policy-02",
+      "question": "How far in advance must business trips be booked?",
+      "expected_document_key": "travel-policy"
+    },
+    {
+      "case_id": "travel-policy-03",
+      "question": "Who approves international travel requests?",
+      "expected_document_key": "travel-policy"
+    },
+    {
+      "case_id": "travel-policy-04",
+      "question": "Are ride-share expenses reimbursable during business travel?",
+      "expected_document_key": "travel-policy"
+    },
+    {
+      "case_id": "travel-policy-05",
+      "question": "What is the per diem allowance for meals while traveling?",
+      "expected_document_key": "travel-policy"
+    },
+    {
+      "case_id": "travel-policy-06",
+      "question": "Can employees extend business trips for personal vacation?",
+      "expected_document_key": "travel-policy"
+    },
+    {
+      "case_id": "travel-policy-07",
+      "question": "What travel insurance coverage does the company provide?",
+      "expected_document_key": "travel-policy"
+    },
+    {
+      "case_id": "travel-policy-08",
+      "question": "How should employees book hotels for conferences?",
+      "expected_document_key": "travel-policy"
+    },
+    {
+      "case_id": "travel-policy-09",
+      "question": "Are loyalty program points considered company property?",
+      "expected_document_key": "travel-policy"
+    },
+    {
+      "case_id": "travel-policy-10",
+      "question": "What documentation is required for travel expense reimbursement?",
+      "expected_document_key": "travel-policy"
+    },
+    {
+      "case_id": "security-policy-01",
+      "question": "How often must employees rotate their passwords?",
+      "expected_document_key": "security-policy"
+    },
+    {
+      "case_id": "security-policy-02",
+      "question": "Is multi-factor authentication required for corporate systems?",
+      "expected_document_key": "security-policy"
+    },
+    {
+      "case_id": "security-policy-03",
+      "question": "What is the policy on using personal USB drives?",
+      "expected_document_key": "security-policy"
+    },
+    {
+      "case_id": "security-policy-04",
+      "question": "How should employees report a suspected phishing email?",
+      "expected_document_key": "security-policy"
+    },
+    {
+      "case_id": "security-policy-05",
+      "question": "Can staff install unapproved software on company laptops?",
+      "expected_document_key": "security-policy"
+    },
+    {
+      "case_id": "security-policy-06",
+      "question": "What encryption is required for data stored on laptops?",
+      "expected_document_key": "security-policy"
+    },
+    {
+      "case_id": "security-policy-07",
+      "question": "How are lost or stolen devices handled under security policy?",
+      "expected_document_key": "security-policy"
+    },
+    {
+      "case_id": "security-policy-08",
+      "question": "What is the clean desk policy for confidential documents?",
+      "expected_document_key": "security-policy"
+    },
+    {
+      "case_id": "security-policy-09",
+      "question": "Who must be notified after a potential data breach?",
+      "expected_document_key": "security-policy"
+    },
+    {
+      "case_id": "security-policy-10",
+      "question": "Are employees allowed to share credentials with teammates?",
+      "expected_document_key": "security-policy"
+    },
+    {
+      "case_id": "equipment-policy-01",
+      "question": "What laptop models are standard issue for engineers?",
+      "expected_document_key": "equipment-policy"
+    },
+    {
+      "case_id": "equipment-policy-02",
+      "question": "How often can employees refresh their assigned hardware?",
+      "expected_document_key": "equipment-policy"
+    },
+    {
+      "case_id": "equipment-policy-03",
+      "question": "Who pays for accidental damage to company equipment?",
+      "expected_document_key": "equipment-policy"
+    },
+    {
+      "case_id": "equipment-policy-04",
+      "question": "Can staff choose between Windows and macOS laptops?",
+      "expected_document_key": "equipment-policy"
+    },
+    {
+      "case_id": "equipment-policy-05",
+      "question": "What is the process for returning equipment when leaving?",
+      "expected_document_key": "equipment-policy"
+    },
+    {
+      "case_id": "equipment-policy-06",
+      "question": "Are monitors and docking stations provided for home offices?",
+      "expected_document_key": "equipment-policy"
+    },
+    {
+      "case_id": "equipment-policy-07",
+      "question": "How should broken hardware be reported to IT?",
+      "expected_document_key": "equipment-policy"
+    },
+    {
+      "case_id": "equipment-policy-08",
+      "question": "Is personal device use allowed for company email?",
+      "expected_document_key": "equipment-policy"
+    },
+    {
+      "case_id": "equipment-policy-09",
+      "question": "What accessories are covered under the equipment budget?",
+      "expected_document_key": "equipment-policy"
+    },
+    {
+      "case_id": "equipment-policy-10",
+      "question": "How are mobile phones provisioned for sales staff?",
+      "expected_document_key": "equipment-policy"
+    },
+    {
+      "case_id": "expense-policy-01",
+      "question": "What is the monthly limit for client entertainment expenses?",
+      "expected_document_key": "expense-policy"
+    },
+    {
+      "case_id": "expense-policy-02",
+      "question": "How long do employees have to submit expense reports?",
+      "expected_document_key": "expense-policy"
+    },
+    {
+      "case_id": "expense-policy-03",
+      "question": "Are home internet costs reimbursable under expense policy?",
+      "expected_document_key": "expense-policy"
+    },
+    {
+      "case_id": "expense-policy-04",
+      "question": "What receipt details are required for reimbursement?",
+      "expected_document_key": "expense-policy"
+    },
+    {
+      "case_id": "expense-policy-05",
+      "question": "Who approves expenses above the manager threshold?",
+      "expected_document_key": "expense-policy"
+    },
+    {
+      "case_id": "expense-policy-06",
+      "question": "Can employees use personal credit cards for business purchases?",
+      "expected_document_key": "expense-policy"
+    },
+    {
+      "case_id": "expense-policy-07",
+      "question": "What categories require pre-approval before spending?",
+      "expected_document_key": "expense-policy"
+    },
+    {
+      "case_id": "expense-policy-08",
+      "question": "How are currency conversions handled for international expenses?",
+      "expected_document_key": "expense-policy"
+    },
+    {
+      "case_id": "expense-policy-09",
+      "question": "Are subscription software tools reimbursable individually?",
+      "expected_document_key": "expense-policy"
+    },
+    {
+      "case_id": "expense-policy-10",
+      "question": "What happens if an expense report is submitted late?",
+      "expected_document_key": "expense-policy"
+    },
+    {
+      "case_id": "incident-response-01",
+      "question": "What is the first step when a production outage is detected?",
+      "expected_document_key": "incident-response"
+    },
+    {
+      "case_id": "incident-response-02",
+      "question": "Who leads the incident response bridge call?",
+      "expected_document_key": "incident-response"
+    },
+    {
+      "case_id": "incident-response-03",
+      "question": "How are severity levels defined for operational incidents?",
+      "expected_document_key": "incident-response"
+    },
+    {
+      "case_id": "incident-response-04",
+      "question": "What communication channels are used during major incidents?",
+      "expected_document_key": "incident-response"
+    },
+    {
+      "case_id": "incident-response-05",
+      "question": "When must legal be involved in an incident response?",
+      "expected_document_key": "incident-response"
+    },
+    {
+      "case_id": "incident-response-06",
+      "question": "How are post-incident reviews documented?",
+      "expected_document_key": "incident-response"
+    },
+    {
+      "case_id": "incident-response-07",
+      "question": "What is the target time to acknowledge a sev-1 incident?",
+      "expected_document_key": "incident-response"
+    },
+    {
+      "case_id": "incident-response-08",
+      "question": "Who has authority to declare an all-hands incident?",
+      "expected_document_key": "incident-response"
+    },
+    {
+      "case_id": "incident-response-09",
+      "question": "How are customer notifications handled during outages?",
+      "expected_document_key": "incident-response"
+    },
+    {
+      "case_id": "incident-response-10",
+      "question": "What artifacts must be preserved for forensic analysis?",
+      "expected_document_key": "incident-response"
+    }
+  ]
+}

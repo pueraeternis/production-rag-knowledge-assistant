@@ -431,6 +431,47 @@ should_continue → tool_node (MCP handler adapters) → agent_node → END
 
 ---
 
+## Evaluation Layer
+
+Plan 13 delivers retrieval-quality evaluation in `knowledge_assistant.evaluation`. The layer measures ranked retrieval output against a committed benchmark — without evaluating LLM answers, agent behavior, or MCP integration. See [Plan 13](plans/completed/13-evaluation-framework.md) and ADR-047 through ADR-050.
+
+```text
+EvaluationDataset                          ← data/evaluation/
+        ↓
+EvaluationRunner.run(retriever, ...)       ← repeated per retrieval strategy
+        ↓
+Retriever.retrieve(SearchQuery)            ← any Retriever implementation
+        ↓
+RetrievalResult
+        ↓
+Metrics (Recall@K, Hit Rate@K, MRR)
+        ↓
+EvaluationReport                           ← one per strategy
+        ↓
+compare_evaluation_reports(...)            ← side-by-side strategy comparison
+        ↓
+ComparisonReport
+```
+
+| Module | Responsibility |
+| ------ | -------------- |
+| `dataset.py` | `EvaluationCase`, `DocumentRegistry`, `EvaluationDataset`, JSON loader, path normalization |
+| `settings.py` | `EvaluationSettings` with metric `@K` cutoffs and `eval_top_k` |
+| `metrics.py` | Pure functions: Hit Rate@K, Recall@K, MRR |
+| `runner.py` | `EvaluationRunner` orchestrating `Retriever.retrieve` over benchmark cases |
+| `report.py` | `EvaluationReport`, `ComparisonReport`, comparison assembly, text formatters |
+| `exceptions.py` | `EvaluationError`, `EvaluationDatasetError` |
+
+**Benchmark ownership (ADR-048):** committed retrieval benchmark JSON lives under `data/evaluation/`. Unit tests use minimal fixtures under `tests/unit/evaluation/fixtures/` only — not the production benchmark.
+
+**Metric semantics (ADR-049):** relevance matching uses normalized `SearchResult.source.document_path` against registry-resolved expected paths. NDCG is deferred.
+
+**Evaluation target (ADR-050):** `EvaluationRunner` accepts any structurally compatible `Retriever`; concrete retriever wiring lives outside `evaluation/` production modules.
+
+**Dependency rule:** evaluation production code may depend on `knowledge_assistant.core`, `knowledge_assistant.retrieval.protocol.Retriever`, and the Python standard library only. It must not import `storage`, `indexing`, `mcp_server`, `llm`, `agent`, LangGraph, LlamaIndex, or concrete retrieval orchestrators. `retrieval/` production code must not import `evaluation/`.
+
+---
+
 ## Source Layout
 
 ```text
@@ -442,6 +483,7 @@ src/knowledge_assistant/
     indexing/       # LlamaIndex ingestion and chunking
     llm/            # OpenAI-compatible LLM boundary
     storage/        # Qdrant integration
+    evaluation/     # retrieval benchmark evaluation and strategy comparison
     cli/            # CLI entrypoints
 ```
 

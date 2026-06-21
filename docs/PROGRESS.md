@@ -6,9 +6,9 @@ Chronological record of completed milestones for Production RAG Knowledge Assist
 
 ## Current Status (2026-06-21)
 
-**Latest completed plan:** [Plan 12 — LangGraph Agent](plans/completed/12-langgraph-agent.md) (Phase 7 — Agent Layer).
+**Latest completed plan:** [Plan 13 — Evaluation Framework](plans/completed/13-evaluation-framework.md) (Phase 8 — Evaluation).
 
-**Authorized implementation scope:** none — `docs/plans/active/` is empty. Next roadmap phase is **Phase 8 — Evaluation** ([Plan 13 — Evaluation Framework](plans/backlog/ROADMAP.md#phase-8--evaluation)); a backlog plan file is not yet drafted.
+**Authorized implementation scope:** none — `docs/plans/active/` is empty. Next roadmap phase is **Phase 9 — Demo Dataset** ([ROADMAP.md](plans/backlog/ROADMAP.md)).
 
 **Deferred from Plan 12:** query rewriting and retrieval retry (proposed Plan 12b), MCP SDK transport (proposed Plan 12c), CLI chat UX.
 
@@ -232,3 +232,22 @@ Established the LangGraph conversational agent in `knowledge_assistant.agent`:
 Plan 12 uses in-process MCP handler adapters (ADR-043 design) rather than MCP SDK transport. Query rewriting, retrieval retry, durable memory, and CLI chat remain deferred per plan non-scope.
 
 **Documentation follow-up (outstanding):** accept ADR-042 through ADR-046 in `docs/DECISIONS.md`.
+
+---
+
+## 2026-06-21 — Evaluation Framework
+
+**Plan:** [13-evaluation-framework.md](plans/completed/13-evaluation-framework.md)
+
+Established the retrieval evaluation layer in `knowledge_assistant.evaluation`:
+
+* implemented frozen dataclass models for benchmark cases, document registry, settings, per-case results, single-strategy reports, and multi-strategy comparison reports;
+* added pure metric functions — Hit Rate@K, Recall@K, and MRR — matching via normalized `SearchResult.source.document_path`;
+* implemented `EvaluationRunner` accepting any `Retriever` with fail-fast error handling;
+* added `compare_evaluation_reports`, `format_evaluation_report`, and `format_comparison_report` for side-by-side dense/sparse/fusion/rerank comparison;
+* committed retrieval benchmark under `data/evaluation/retrieval_benchmark_v1.json` (70 curated cases targeting the synthetic knowledge-base corpus);
+* added unit tests in `tests/unit/evaluation/` with minimal JSON fixtures and import-boundary tests;
+* recorded ADR-047 through ADR-050 in `docs/DECISIONS.md`;
+* documented evaluation layer boundary in `docs/ARCHITECTURE.md`.
+
+CLI wiring for evaluation output and optional full-benchmark integration tests remain deferred per plan non-scope.

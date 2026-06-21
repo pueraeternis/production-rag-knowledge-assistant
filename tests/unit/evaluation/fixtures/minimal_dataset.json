@@ -1,0 +1,25 @@
+{
+  "dataset_id": "fixture_dataset",
+  "description": "Minimal loader fixture",
+  "corpus_version": "test",
+  "documents": {
+    "policy-a": {
+      "path": "knowledge/policies/policy_a.md"
+    },
+    "policy-b": {
+      "path": "./knowledge/policies/policy_b.md"
+    }
+  },
+  "cases": [
+    {
+      "case_id": "case-1",
+      "question": "What is policy A about?",
+      "expected_document_key": "policy-a"
+    },
+    {
+      "case_id": "case-2",
+      "question": "What is policy B about?",
+      "expected_document_key": "policy-b"
+    }
+  ]
+}

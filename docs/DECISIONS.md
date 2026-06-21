@@ -1532,3 +1532,155 @@ ADR-013 establishes embedding ownership for indexing and retrieval. ADR-027 plac
 | ----------- | ------------ |
 | Shared `models/` package for all ML inference | Premature; violates layer ownership |
 | Reranker in `llm/` | ADR-027 explicitly rejects this |
+
+---
+
+### ADR-047: Evaluation Layer Ownership
+
+**Status:** Accepted
+
+**Date:** 2026-06-21
+
+#### Context
+
+`PROJECT.md` lists retrieval evaluation as a project goal. Plans 06–09 deliver composable retrievers behind `Retriever`. Higher layers (MCP, agent, LLM) must not own retrieval-quality measurement. Without an explicit evaluation boundary, metrics logic risks appearing in retrieval tests, CLI scripts, or agent workflows — violating component ownership and making strategy comparison inconsistent.
+
+#### Decision
+
+* Implement retrieval evaluation in a dedicated package: `knowledge_assistant.evaluation`.
+* The evaluation layer owns benchmark dataset models, document registry, loading, retrieval metric definitions, aggregation, `EvaluationRunner` orchestration over `Retriever.retrieve`, structured `EvaluationReport` output, and `ComparisonReport` assembly for multi-strategy comparison.
+* The evaluation layer owns the retrieval benchmark as a first-class asset under `data/evaluation/`.
+* The evaluation layer does **not** own retrieval algorithms, indexing, storage, MCP handlers, agent orchestration, LLM inference, or answer generation.
+* Evaluation measures ranked retrieval output only — inputs are `SearchQuery`; outputs are analyzed `RetrievalResult` tuples.
+* Production code in `evaluation/` depends on `knowledge_assistant.core` and `knowledge_assistant.retrieval.protocol.Retriever` only, plus the Python standard library.
+* Concrete retriever construction belongs in tests, future CLI wiring, or demo scripts — not in `evaluation/` production modules.
+
+#### Consequences
+
+* Retrieval strategies are comparable on equal footing using one runner and one dataset.
+* Evaluation runs without Qdrant, MCP, LangGraph, or LLM when tests inject fake retrievers.
+* Phase 8 lecture flow runs four wired retrievers against one benchmark and prints a `ComparisonReport` table.
+
+#### Alternatives Considered
+
+| Alternative | Why rejected |
+| ----------- | ------------ |
+| Metrics inside `retrieval/` | Couples measurement to the subsystem under test |
+| MCP tool `evaluate_retrieval` | Evaluation is offline/batch analysis, not agent knowledge access |
+| Agent-side evaluation loop | Conflates orchestration quality with retrieval quality |
+| pytest-only helpers without a package | Not reusable for CLI comparison or lecture demos |
+
+---
+
+### ADR-048: Evaluation Dataset Format
+
+**Status:** Accepted
+
+**Date:** 2026-06-21
+
+#### Context
+
+Retrieval evaluation requires stable ground-truth labels independent of any one retriever. The project knowledge base consists of synthetic corporate documents per `PROJECT.md`. The benchmark is a project asset owned by the evaluation layer; test fixtures must not define benchmark validity.
+
+#### Decision
+
+* Store benchmark data as committed JSON files under `data/evaluation/`.
+* Top-level schema includes `dataset_id`, optional `description`, optional `corpus_version`, a `documents` registry, and `cases`.
+* `DocumentRegistry` maps benchmark-local `document_key` strings to canonical relative `path` strings.
+* `EvaluationCase` fields: `case_id`, `question`, `expected_document_key` (single relevant document in v1).
+* Loader: `load_evaluation_dataset(path: Path) -> EvaluationDataset` using stdlib `json` only.
+* Validation at load time covers non-empty identifiers, registry integrity, unique `case_id` values, and resolvable document keys.
+* Plan 13 v1 uses document-level labels only; chunk-level labels are deferred.
+* Benchmark paths align with the planned synthetic knowledge-base layout under `knowledge/`.
+
+#### Consequences
+
+* Benchmark labels survive indexing-internal ID changes as long as indexed `SourceReference.document_path` matches registry paths.
+* Datasets are version-controlled, diffable, and agent-legible.
+* Corpus path changes require a benchmark dataset version bump, not silent relabeling.
+
+#### Alternatives Considered
+
+| Alternative | Why rejected |
+| ----------- | ------------ |
+| YAML dataset | Requires non-stdlib dependency |
+| Dataset embedded only in Python test modules | Harder to reuse for CLI and lecture comparison |
+| Benchmark derived from indexing test fixtures | Couples evaluation validity to test fixtures |
+| `expected_document_id` (UUID5) as primary label | Tight coupling to indexing ID generation |
+
+---
+
+### ADR-049: Retrieval Metric Selection
+
+**Status:** Accepted
+
+**Date:** 2026-06-21
+
+#### Context
+
+Plan 13 must quantify retrieval quality with standard metrics comparable across dense, sparse, fusion, and rerank retrievers. The v1 dataset uses one relevant document per question (binary relevance at document granularity).
+
+#### Decision
+
+**Include in Plan 13:**
+
+| Metric | Definition (per case) | Aggregation |
+| ------ | ---------------------- | ------------- |
+| **Hit Rate@K** | `1.0` if any result in top `K` matches the expected document path, else `0.0` | Macro mean across cases |
+| **Recall@K** | Same as Hit Rate@K when exactly one relevant document exists per case | Macro mean across cases |
+| **MRR** | `1 / rank` of the first matching document; `0.0` if no match within evaluated `top_k` | Mean across cases |
+
+* `EvaluationSettings.metrics_k` defaults to `(1, 3, 5)`; `EvaluationSettings.eval_top_k` is passed to `SearchQuery.top_k`.
+* Metrics inspect `RetrievalResult.results` order as returned by the retriever — no re-sorting in the evaluation layer.
+* Relevance matching resolves `expected_document_key` → registry `path`, normalizes paths, and compares against `SearchResult.source.document_path`.
+* **Defer NDCG** to a future evaluation plan.
+
+#### Consequences
+
+* Reports are easy to explain in the Production RAG lecture.
+* Same metrics apply uniformly to all `Retriever` implementations.
+* Hit Rate@K and Recall@K are numerically identical under v1 single-relevant-doc labels; both names are retained for future multi-document benchmarks.
+
+#### Alternatives Considered
+
+| Alternative | Why rejected |
+| ----------- | ------------ |
+| Include NDCG now | Graded labels absent; redundant for v1 |
+| Chunk-level precision only | Misaligned with document-scoped synthetic policies |
+| Score-threshold metrics | Scores are incomparable across retriever types |
+
+---
+
+### ADR-050: Retriever Protocol as Evaluation Target
+
+**Status:** Accepted
+
+**Date:** 2026-06-21
+
+#### Context
+
+Plan 08 introduced `Retriever` as the composable retrieval contract. Plan 13 must evaluate dense, sparse, fusion, and rerank strategies without importing their concrete classes.
+
+#### Decision
+
+* `EvaluationRunner.run(...)` accepts `retriever: Retriever` from `retrieval.protocol`.
+* The runner calls `retriever.retrieve(SearchQuery(text=case.question, top_k=settings.eval_top_k))` for each case.
+* The runner does not call `VectorStore`, embedding providers, fusion math, or rerankers directly.
+* `retriever_label: str` is a caller-supplied report field; the protocol has no name property.
+* Evaluation code imports `Retriever` from `knowledge_assistant.retrieval.protocol` only.
+* Default error handling is fail-fast — abort report on first retriever error.
+
+#### Consequences
+
+* Unit tests use fake retrievers without storage.
+* Integration tests construct real retriever stacks in test conftest while keeping `evaluation/` modules import-clean.
+* Lecture demo runs `EvaluationRunner` four times and assembles a `ComparisonReport`.
+
+#### Alternatives Considered
+
+| Alternative | Why rejected |
+| ----------- | ------------ |
+| Evaluate `VectorStore.search_*` directly | Bypasses retrieval orchestration under test |
+| Hard-code four concrete retriever classes in runner | Breaks composability |
+| Callable instead of protocol | Less consistent with ADR-022 |
+| Swallow retriever errors and score as miss | Hides infrastructure failures |

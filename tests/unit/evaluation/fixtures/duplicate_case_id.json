@@ -1,0 +1,20 @@
+{
+  "dataset_id": "broken_dataset",
+  "documents": {
+    "policy-a": {
+      "path": "knowledge/policies/policy_a.md"
+    }
+  },
+  "cases": [
+    {
+      "case_id": "case-1",
+      "question": "First question",
+      "expected_document_key": "policy-a"
+    },
+    {
+      "case_id": "case-1",
+      "question": "Duplicate case id",
+      "expected_document_key": "policy-a"
+    }
+  ]
+}
