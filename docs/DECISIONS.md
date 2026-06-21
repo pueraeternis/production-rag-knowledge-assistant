@@ -508,3 +508,123 @@ Storage owns neither.
 | Shared embedding module used by indexing and retrieval | Couples read and write paths |
 | Storage generates query embeddings | Violates ADR-006 and component boundaries |
 | Single global `EmbeddingProvider` in `core/` | Pollutes domain layer with infrastructure concerns per ADR-001 |
+
+---
+
+### ADR-014: Dense Retrieval Boundary
+
+**Status:** Accepted
+
+**Date:** 2026-06-21
+
+#### Context
+
+Plan 04 exposes `VectorStore.search_dense(vector, top_k)` as a storage primitive that accepts pre-computed vectors. ADR-013 assigns query-path embedding ownership to retrieval. Higher layers (MCP, agent) must not embed queries or call storage search primitives directly.
+
+#### Decision
+
+* Dense retrieval is implemented in `knowledge_assistant.retrieval`.
+* `DenseRetriever` is the public orchestration entry point for dense search.
+* Responsibilities:
+  * accept `SearchQuery` (text + `top_k`);
+  * generate query embeddings via `QueryEmbeddingProvider`;
+  * validate embedding dimension against `DenseRetrievalSettings.dense_vector_size`;
+  * call `VectorStore.search_dense(vector=..., top_k=query.top_k)`;
+  * wrap `tuple[SearchResult, ...]` in `RetrievalResult`.
+* The retrieval layer must **not** expose vectors to callers.
+* Callers work only with text queries via `SearchQuery`.
+* `DenseRetriever` must **not** expose vector-accepting public APIs or passthrough wrappers around `search_dense`.
+* Raw dense similarity scores from storage are returned unchanged in `SearchResult.score` (no fusion, no reranking).
+* `DenseRetriever` is a **leaf retriever**; future plans may compose it behind higher-level orchestrators without changing its public API.
+
+#### Consequences
+
+* MCP and agent plans depend on `DenseRetriever.retrieve`, not on storage or embedding internals.
+* Retrieval tests inject fake `VectorStore` and stub embedding providers without Qdrant.
+* Future hybrid retrieval composes `DenseRetriever` alongside other leaf retrievers behind a higher orchestrator.
+
+#### Alternatives Considered
+
+| Alternative | Why rejected |
+| ----------- | ------------ |
+| MCP calls `VectorStore.search_dense` directly | Violates component boundaries; pushes embedding into MCP |
+| Storage accepts query text | Violates ADR-006; couples persistence to embedding models |
+| Shared retriever returning raw vectors | Leaks infrastructure concerns to callers |
+| Reuse indexing `EmbeddingProvider.embed_texts` for queries | Different ownership and call shape; blurs ADR-013 boundaries |
+
+---
+
+### ADR-015: QueryEmbeddingProvider
+
+**Status:** Accepted
+
+**Date:** 2026-06-21
+
+#### Context
+
+ADR-013 separates write-path embeddings (indexing) from query-path embeddings (retrieval). Indexing defines `EmbeddingProvider.embed_texts` for batch chunk embedding. Retrieval needs a query-focused contract with a single-text entry point.
+
+#### Decision
+
+* Define a retrieval-local `QueryEmbeddingProvider` protocol in `retrieval/embeddings.py` with `embed_query(text: str) -> tuple[float, ...]`.
+* Do **not** reuse indexing `EmbeddingProvider` or import from `knowledge_assistant.indexing.embeddings`.
+* Real BAAI/bge-m3 query-path implementation is deferred to a future plan; it will implement this protocol.
+* `DenseRetriever` depends on `QueryEmbeddingProvider`, not on indexing types.
+* `llm/` is not the embedding owner for the query path (reinforces ADR-013).
+
+#### Consequences
+
+* Indexing and retrieval embedding contracts evolve independently.
+* Retrieval unit tests mock `embed_query` without indexing package imports.
+* Future BGE-M3 integration replaces `StubQueryEmbeddingProvider` within retrieval only.
+
+#### Alternatives Considered
+
+| Alternative | Why rejected |
+| ----------- | ------------ |
+| Reuse indexing `EmbeddingProvider` | Different method (`embed_texts` vs `embed_query`); couples read/write paths |
+| Shared embedding module in `core/` | Pollutes domain layer per ADR-001 |
+| `EmbeddingProvider` in retrieval with alias import from indexing | Violates layer ownership per ADR-013 |
+
+---
+
+### ADR-016: Stub Query Embeddings
+
+**Status:** Accepted
+
+**Date:** 2026-06-21
+
+#### Context
+
+Real BGE-M3 integration is deferred. Retrieval still needs a deterministic, testable query embedding implementation aligned with indexing stub philosophy (ADR-009) and default vector dimension (1024).
+
+#### Decision
+
+* Provide `StubQueryEmbeddingProvider` in `retrieval/embeddings.py`.
+* Requirements:
+  * deterministic;
+  * hash-based (SHA-256 expansion);
+  * no model runtime;
+  * default dimension `1024` (matches `DEFAULT_DENSE_VECTOR_SIZE`, indexing stub, and storage schema).
+* Algorithm mirrors `StubEmbeddingProvider` philosophy from Plan 05:
+  1. Compute SHA-256 digest of query text (UTF-8).
+  2. Expand digest bytes deterministically to `dimension` float components in `[-1.0, 1.0]`.
+  3. L2-normalize the vector for cosine distance compatibility.
+  4. Return `tuple[float, ...]` with length exactly `dimension`.
+* `StubQueryEmbeddingProvider` is a development/testing stub, not a production embedding model.
+* No real BGE-M3, `sentence-transformers`, `torch`, or `transformers` in Plan 06.
+
+#### Consequences
+
+* Retrieval tests run without GPU or model downloads.
+* End-to-end dense retrieval against stub-indexed content is possible when indexing and retrieval use matching dimensions and compatible stub algorithms.
+* Plan 07+ sparse retrieval and Plan 08 fusion are unaffected.
+
+#### Alternatives Considered
+
+| Alternative | Why rejected |
+| ----------- | ------------ |
+| Import `StubEmbeddingProvider` from indexing | Couples retrieval to indexing; violates ADR-015 |
+| Random vectors per query | Non-deterministic; breaks reproducible tests |
+| Zero vector placeholder | Poor cosine behavior; less representative of real embeddings |
+| Real BGE-M3 in Plan 06 | Explicitly deferred; adds model runtime dependencies |

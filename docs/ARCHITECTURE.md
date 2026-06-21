@@ -45,7 +45,23 @@ All knowledge access happens through MCP tools and resources.
 
 ## Retrieval Layer
 
-The retrieval layer implements a hybrid retrieval pipeline:
+The retrieval layer is deterministic and must not call LLMs. Plan 06 implements the dense retrieval path only; sparse retrieval, fusion, and reranking are deferred to later plans.
+
+```text
+SearchQuery (text, top_k)
+    ↓
+DenseRetriever.retrieve()
+    ↓
+QueryEmbeddingProvider.embed_query(query.text)
+    ↓
+validate len(vector) == DenseRetrievalSettings.dense_vector_size
+    ↓
+VectorStore.search_dense(vector=vector, top_k=query.top_k)
+    ↓
+RetrievalResult(query=query, results=...)
+```
+
+Future hybrid retrieval will compose dense and sparse leaf retrievers behind a higher orchestrator:
 
 ```text
 Dense Search
@@ -59,7 +75,18 @@ Reranker
 Top Context
 ```
 
-The retrieval layer is deterministic and must not call LLMs.
+| Module | Responsibility |
+| ------ | -------------- |
+| `config.py` | `DenseRetrievalSettings` |
+| `embeddings.py` | `QueryEmbeddingProvider`, `StubQueryEmbeddingProvider` |
+| `exceptions.py` | Retrieval-specific error types |
+| `dense.py` | `DenseRetriever` orchestration |
+
+**Query embedding ownership (ADR-013, ADR-015):** retrieval generates query-path embeddings via `QueryEmbeddingProvider`; indexing generates write-path chunk embeddings; storage generates neither.
+
+**Public contract:** callers submit `SearchQuery` text and receive `RetrievalResult`. Vectors are internal to retrieval and must not leak to MCP, agent, or other higher layers.
+
+**Dependency rule:** retrieval depends on the `VectorStore` protocol only — not on `qdrant_client`, `StorageSettings`, or other storage modules. See [ADR-014](DECISIONS.md#adr-014-dense-retrieval-boundary) through [ADR-016](DECISIONS.md#adr-016-stub-query-embeddings).
 
 ---
 

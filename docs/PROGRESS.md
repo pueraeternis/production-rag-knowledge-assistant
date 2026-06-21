@@ -87,3 +87,20 @@ Established the indexing layer in `knowledge_assistant.indexing`:
 * documented indexing layer boundary in `docs/ARCHITECTURE.md`.
 
 **Revision (post-review):** overlap-aware line attribution; `ChunkingError` for splitter failures; empty-directory `index_documents` storage no-op; LlamaIndex `SimpleDirectoryReader` owns loading with raw on-disk text as attribution mirror only.
+
+---
+
+## 2026-06-21 — Dense Retrieval
+
+**Plan:** [06-dense-retrieval.md](plans/completed/06-dense-retrieval.md)
+
+Established the dense retrieval path in `knowledge_assistant.retrieval`:
+
+* implemented `DenseRetriever` orchestrating query embedding and `VectorStore.search_dense`;
+* defined retrieval-local `QueryEmbeddingProvider` protocol separate from indexing `EmbeddingProvider`;
+* added `StubQueryEmbeddingProvider` (hash-based, deterministic, L2-normalized, default dimension 1024);
+* added `DenseRetrievalSettings` with `dense_vector_size` validation;
+* added retrieval-specific exception types;
+* added unit tests in `tests/unit/retrieval/` and integration tests with fake `VectorStore` in `tests/integration/retrieval/`;
+* recorded ADR-014 through ADR-016 in `docs/DECISIONS.md`;
+* documented retrieval layer dense path in `docs/ARCHITECTURE.md`.
