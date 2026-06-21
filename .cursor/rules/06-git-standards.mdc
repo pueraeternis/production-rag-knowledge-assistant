@@ -1,0 +1,357 @@
+---
+
+description: Git and change management conventions
+alwaysApply: true
+-----------------
+
+# Git Standards
+
+Primary branch: `main`.
+
+Do not force-push to `main`.
+
+---
+
+# Commit Frequency
+
+* Create commits only when explicitly requested.
+* Prefer one logical change per commit.
+* Do not bundle unrelated changes together.
+* Do not commit work that fails validation.
+* Do not create empty commits.
+
+---
+
+# Commit Requirements
+
+Every commit must:
+
+* be scoped to an active plan or explicitly authorized work;
+* pass validation (or bootstrap validation exception applies);
+* exclude secrets and local artifacts;
+* include documentation updates when architecture or behavior changes.
+
+Never commit:
+
+```text
+.env
+.venv/
+.pytest_cache/
+.ruff_cache/
+__pycache__/
+```
+
+Never commit:
+
+* credentials;
+* API keys;
+* local configuration files;
+* temporary debugging code;
+* commented-out experiments.
+
+---
+
+# Validation Requirements
+
+Before commit (required after Python bootstrap):
+
+```bash
+uv run ruff format --check .
+uv run ruff check .
+uv run basedpyright
+uv run pytest
+```
+
+Validation failures must be resolved before commit.
+
+### Bootstrap Validation Exception
+
+Before `pyproject.toml` exists, documentation-only commits are exempt from the quality commands above.
+
+After Python project initialization is complete, standard validation becomes mandatory for all commits.
+
+---
+
+# Commit Message Format
+
+Use Conventional Commits.
+
+Format:
+
+```text
+<type>(<scope>): <summary>
+
+[optional body]
+
+[optional footer]
+```
+
+Example:
+
+```text
+feat(agent): add tool routing node
+```
+
+Example:
+
+```text
+feat(mcp): add search_documents tool
+```
+
+Example:
+
+```text
+fix(retrieval): preserve reranker ordering
+```
+
+Example:
+
+```text
+docs(architecture): document retrieval pipeline
+```
+
+---
+
+# Allowed Commit Types
+
+| Type     | Purpose                     |
+| -------- | --------------------------- |
+| feat     | New capability              |
+| fix      | Bug fix                     |
+| docs     | Documentation-only change   |
+| test     | Test-only change            |
+| refactor | Internal restructuring      |
+| chore    | Tooling and maintenance     |
+| ci       | CI/CD changes               |
+| build    | Packaging and build changes |
+
+---
+
+# Commit Message Rules
+
+Subject line:
+
+* imperative mood;
+* lowercase after prefix;
+* no trailing period;
+* maximum 72 characters.
+
+Use a scope whenever practical.
+
+Preferred scopes:
+
+```text
+agent
+mcp
+retrieval
+indexing
+storage
+llm
+architecture
+repo
+tests
+docs
+```
+
+The commit body should explain:
+
+```text
+Why
+```
+
+rather than:
+
+```text
+What
+```
+
+when the reason is not obvious.
+
+---
+
+# Branching Strategy
+
+`main` is the integration branch.
+
+Create feature branches from `main`.
+
+Examples:
+
+```text
+feat/hybrid-retrieval
+feat/mcp-server
+feat/indexing-pipeline
+```
+
+Keep branches:
+
+* short-lived;
+* focused;
+* aligned with a single plan.
+
+Do not force-push to `main`.
+
+Force-push feature branches only when coordinated and intentional.
+
+---
+
+# Plans and Commits
+
+Implementation commits must remain within active-plan scope.
+
+If the relationship is not obvious, reference the plan:
+
+```text
+Plan: docs/plans/active/01-project-bootstrap.md
+```
+
+in the commit body.
+
+Update:
+
+```text
+docs/PROGRESS.md
+```
+
+when completing meaningful milestones.
+
+Move completed plans to:
+
+```text
+docs/plans/completed/
+```
+
+when work finishes.
+
+No implementation without plan authorization.
+
+---
+
+# Architecture Changes
+
+Non-trivial architecture changes require:
+
+* documentation updates;
+* ADR entries in docs/DECISIONS.md.
+
+Examples:
+
+* LangGraph architecture changes;
+* MCP contract changes;
+* retrieval architecture changes;
+* indexing architecture changes;
+* source attribution design changes;
+* LLM integration changes.
+
+Architecture should not exist only in source code.
+
+---
+
+# Documentation Changes
+
+Documentation is part of the implementation.
+
+Update documentation when changing:
+
+* architecture;
+* retrieval behavior;
+* indexing behavior;
+* MCP contracts;
+* source attribution;
+* project scope.
+
+Relevant documents include:
+
+```text
+PROJECT.md
+docs/ARCHITECTURE.md
+docs/DECISIONS.md
+docs/PROGRESS.md
+```
+
+Documentation changes should be committed alongside the related implementation whenever practical.
+
+---
+
+# Refactoring
+
+Refactoring must not change observable behavior.
+
+Use:
+
+```text
+refactor(<scope>):
+```
+
+Keep refactors:
+
+* focused;
+* reviewable;
+* independent from feature development.
+
+Avoid drive-by refactors outside active-plan scope.
+
+Run the full validation suite after refactoring.
+
+---
+
+# Temporary Code
+
+Remove before commit:
+
+* debugging helpers;
+* scratch scripts;
+* temporary experiments;
+* validation bypasses.
+
+Avoid committing unfinished scaffolding.
+
+---
+
+# Generated Files
+
+Commit:
+
+* `uv.lock`;
+* required reproducible dependency artifacts.
+
+Do not commit:
+
+* caches;
+* bytecode;
+* local environments;
+* temporary outputs.
+
+If generated files must be tracked, document the reason.
+
+---
+
+# Before Push Checklist
+
+Before pushing:
+
+1. Review `git status`.
+2. Review `git diff`.
+3. Confirm validation passes.
+4. Confirm documentation updates are included.
+5. Confirm commit messages follow conventions.
+6. Confirm branch is up to date with `main`.
+7. Do not push unless explicitly requested.
+
+---
+
+# Definition of a Good Commit
+
+A good commit:
+
+* solves one logical problem;
+* delivers one plan increment;
+* leaves the repository in a working state;
+* passes validation (or bootstrap validation exception applies);
+* has a clear commit message;
+* explains why when needed;
+* stays within active-plan scope;
+* contains no secrets or local artifacts;
+* includes required documentation updates.
+
+Every commit should be understandable without opening the entire diff.

@@ -1,0 +1,393 @@
+---
+
+description: Python tooling and package standards
+globs: "**/*.py"
+alwaysApply: false
+------------------
+
+# Python Standards
+
+## Dependency Management
+
+* Use `uv` exclusively.
+* Dependencies must be declared in `pyproject.toml`.
+* Do not introduce duplicate libraries with overlapping responsibilities.
+* Prefer mature and well-maintained libraries.
+* Do not add runtime dependencies without an active plan.
+
+---
+
+## Formatting & Linting
+
+Code must pass (required after Python bootstrap):
+
+```bash
+uv run ruff format --check .
+uv run ruff check .
+uv run basedpyright
+uv run pytest
+```
+
+before commit.
+
+### Bootstrap Validation Exception
+
+Before `pyproject.toml` exists, documentation-only commits are exempt from the quality commands above.
+
+After Python project initialization is complete, standard validation becomes mandatory for all commits.
+
+Run all development tools through `uv run`.
+
+Do not invoke:
+
+```bash
+pytest
+ruff
+basedpyright
+```
+
+directly.
+
+---
+
+## Type Safety
+
+Type annotations are mandatory for all public functions and methods.
+
+Prefer:
+
+* explicit types;
+* domain models;
+* structured schemas.
+
+Avoid:
+
+```python
+Any
+dict[str, Any]
+```
+
+unless there is a clear justification.
+
+Use Pydantic models for:
+
+* configuration;
+* MCP requests;
+* MCP responses;
+* LLM structured outputs;
+* evaluation records;
+* retrieval metadata.
+
+Use dataclasses only for simple immutable value objects.
+
+---
+
+## LangGraph State
+
+LangGraph state should be represented by explicit typed models whenever practical.
+
+Prefer:
+
+```python
+class AgentState(BaseModel):
+    messages: list[Message]
+    search_query: str | None
+    attempt_count: int
+```
+
+Avoid large untyped state dictionaries.
+
+State must remain understandable and inspectable.
+
+---
+
+## Retrieval Models
+
+Retrieval results must be represented by explicit models.
+
+Prefer:
+
+```python
+class RetrievedChunk(BaseModel):
+    chunk_id: str
+    document_title: str
+    section_title: str
+    start_line: int
+    end_line: int
+    score: float
+```
+
+Avoid passing retrieval results as arbitrary dictionaries.
+
+---
+
+## Function Design
+
+Functions should:
+
+* do one thing;
+* have clear inputs;
+* have clear outputs;
+* avoid hidden side effects.
+
+Prefer:
+
+```python
+def rerank_chunks(
+    query: str,
+    chunks: list[RetrievedChunk],
+) -> list[RetrievedChunk]:
+    ...
+```
+
+Avoid:
+
+```python
+def process(data):
+    ...
+```
+
+---
+
+## Cached Singletons
+
+Use `functools.cache` for process-local singleton factories.
+
+Prefer:
+
+```python
+from functools import cache
+
+
+@cache
+def get_settings() -> Settings:
+    return Settings()
+```
+
+Avoid module-level mutable globals and manual lazy initialization.
+
+When tests require isolation, expose `cache_clear()`.
+
+---
+
+## Error Handling
+
+Use explicit exception hierarchies.
+
+Base application errors should inherit from:
+
+```python
+AppError
+```
+
+Guidelines:
+
+* `TypeError` → invalid type
+* `ValueError` → invalid value
+* `AppError` → domain-specific failure
+
+Never silently ignore exceptions.
+
+Forbidden:
+
+```python
+except Exception:
+    pass
+```
+
+---
+
+## Logging
+
+Use structured logging.
+
+Prefer:
+
+```python
+logger.info(
+    "Retrieved chunks",
+    extra={
+        "query": query,
+        "chunk_count": len(chunks),
+    },
+)
+```
+
+or:
+
+```python
+logger.info(
+    "Retrieved %s chunks",
+    len(chunks),
+)
+```
+
+Do not use:
+
+```python
+print(...)
+```
+
+outside CLI presentation code or temporary local debugging.
+
+---
+
+## Retrieval Logging
+
+Log important retrieval operations.
+
+Examples:
+
+* search query;
+* retrieved chunk count;
+* reranked chunk count;
+* retrieval latency;
+* reranking latency;
+* selected sources.
+
+Logs should help explain how answers were generated.
+
+---
+
+## Structured Outputs
+
+Prefer structured outputs over free-form text whenever possible.
+
+The following components should use structured outputs:
+
+* intent classification;
+* query rewriting;
+* review decisions;
+* MCP tool routing;
+* answer metadata extraction.
+
+Avoid parsing free-form LLM responses when a schema can be defined.
+
+---
+
+## Documentation
+
+### Public APIs
+
+Public functions should contain docstrings.
+
+Include:
+
+* purpose;
+* arguments;
+* return values;
+* raised exceptions.
+
+### Internal Functions
+
+Keep docstrings concise.
+
+Example:
+
+```python
+"""Perform hybrid retrieval and reranking."""
+```
+
+---
+
+## Imports
+
+* Imports must be top-level.
+* Avoid import-time side effects.
+* Avoid circular dependencies.
+* Use `TYPE_CHECKING` for type-only imports.
+* Avoid dynamic imports unless absolutely necessary.
+
+Forbidden:
+
+```python
+def foo() -> None:
+    import something
+```
+
+---
+
+## Async Rules
+
+Use async only when it provides clear value.
+
+Prefer async for:
+
+* MCP communication;
+* HTTP clients;
+* OpenAI-compatible APIs;
+* background indexing operations.
+
+Avoid mixing sync and async unnecessarily.
+
+Do not block the event loop with long-running CPU-bound tasks.
+
+---
+
+## Configuration
+
+Configuration must come from:
+
+* environment variables;
+* configuration files.
+
+Do not hardcode:
+
+* credentials;
+* API keys;
+* deployment endpoints.
+
+Model names may have local defaults but must remain configurable.
+
+Example:
+
+```python
+DEFAULT_EMBEDDING_MODEL = "BAAI/bge-m3"
+```
+
+is acceptable.
+
+---
+
+## Testing Mindset
+
+Business logic should be testable.
+
+Prefer:
+
+* pure functions;
+* dependency injection;
+* explicit interfaces.
+
+Avoid designs that require heavy mocking.
+
+---
+
+## MCP Design
+
+MCP request and response payloads should use explicit schemas.
+
+Avoid passing raw dictionaries between:
+
+* agent;
+* MCP server;
+* retrieval layer.
+
+Typed contracts are preferred.
+
+---
+
+## Package Initialization
+
+`__init__.py` files should remain minimal.
+
+Allowed:
+
+* package exports;
+* version declarations.
+
+Avoid:
+
+* runtime initialization;
+* business logic;
+* side effects.

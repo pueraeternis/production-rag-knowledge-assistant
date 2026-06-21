@@ -1,0 +1,450 @@
+---
+
+description: Testing conventions for the knowledge assistant
+globs: "**/test_*.py,**/tests/**"
+alwaysApply: false
+------------------
+
+# Testing Standards
+
+Production RAG Knowledge Assistant tests verify agent behavior, MCP contracts, retrieval pipelines, indexing workflows, and source attribution.
+
+Tests do not evaluate model intelligence.
+
+Read:
+
+1. AGENTS.md
+2. PROJECT.md
+3. docs/ARCHITECTURE.md
+4. docs/DECISIONS.md
+5. docs/plans/active/
+
+before introducing significant test changes.
+
+Tests require active-plan scope.
+
+---
+
+# Testing Hierarchy
+
+Three levels, from fastest to slowest:
+
+| Level       | Location             | Purpose                                            |
+| ----------- | -------------------- | -------------------------------------------------- |
+| Unit        | `tests/unit/`        | Pure logic, validation, routing, transformations   |
+| Integration | `tests/integration/` | Component interaction with mocked dependencies     |
+| Smoke       | `tests/smoke/`       | Environment verification and runtime sanity checks |
+
+Prefer the lowest test level that verifies the behavior.
+
+---
+
+# Unit Tests
+
+Verify:
+
+* domain models;
+* validation logic;
+* retrieval transformations;
+* query rewriting;
+* intent classification;
+* source attribution logic;
+* reranking behavior;
+* deterministic utility functions.
+
+Unit tests must:
+
+* run fast;
+* avoid network access;
+* avoid external services;
+* avoid real MCP servers;
+* avoid real Qdrant;
+* avoid real LLM calls.
+
+Place unit tests in:
+
+```text
+tests/unit/
+```
+
+mirroring the source structure where practical.
+
+---
+
+# Integration Tests
+
+Verify interaction between:
+
+```text
+agent ↔ MCP server
+agent ↔ LLM boundary
+MCP server ↔ retrieval layer
+retrieval layer ↔ storage layer
+indexing ↔ storage layer
+```
+
+Integration tests may use:
+
+* in-memory stores;
+* fake MCP clients;
+* fake LLM clients;
+* fixture documents;
+* local test collections.
+
+Integration tests must avoid:
+
+* live OpenAI;
+* live Qwen;
+* live external APIs.
+
+---
+
+# Smoke Tests
+
+Location:
+
+```text
+tests/smoke/
+```
+
+Purpose:
+
+* environment verification;
+* service availability;
+* startup validation.
+
+Examples:
+
+* Qdrant reachable;
+* MCP server starts successfully;
+* local embedding model loads;
+* indexing pipeline initializes.
+
+Smoke tests are optional and may require local services.
+
+Keep them separate from unit and integration suites.
+
+---
+
+# Test Execution
+
+All tests must run from repository root.
+
+Use:
+
+```bash
+uv run pytest
+uv run pytest tests/unit
+uv run pytest tests/integration
+uv run pytest tests/smoke
+```
+
+Never use:
+
+```bash
+pytest
+python -m pytest
+```
+
+Run all tools through `uv run`.
+
+---
+
+# Parameterization
+
+Use:
+
+```python
+pytest.mark.parametrize
+```
+
+for:
+
+* retrieval edge cases;
+* reranking scenarios;
+* validation cases;
+* routing decisions;
+* source attribution cases.
+
+Avoid duplicated tests.
+
+---
+
+# Determinism
+
+Tests must be deterministic.
+
+Avoid:
+
+* random behavior without fixed seeds;
+* wall-clock dependencies;
+* execution-order dependencies;
+* external mutable state.
+
+Prefer:
+
+* fixtures;
+* fake clients;
+* fixed inputs;
+* deterministic outputs.
+
+---
+
+# MCP Tests
+
+Every MCP tool requires three categories of coverage.
+
+## Schema Tests
+
+Validate:
+
+* request schemas;
+* response schemas;
+* serialization;
+* error responses.
+
+## Happy Path Tests
+
+Verify:
+
+* successful execution;
+* structured outputs;
+* expected result shape.
+
+## Failure Tests
+
+Verify:
+
+* invalid arguments;
+* validation failures;
+* missing inputs;
+* stable error codes.
+
+MCP tests must not call real LLMs.
+
+---
+
+# Retrieval Tests
+
+Verify:
+
+* dense retrieval;
+* sparse retrieval;
+* fusion;
+* reranking;
+* metadata propagation;
+* source attribution.
+
+Examples:
+
+```text
+Question
+    ↓
+Retrieved Chunks
+    ↓
+Expected Document Appears In Top-K
+```
+
+Retrieval tests should focus on correctness and reproducibility.
+
+---
+
+# Source Attribution Tests
+
+Source attribution is a first-class feature.
+
+Verify:
+
+```text
+Retrieved Chunk
+      ↓
+Generated Answer
+      ↓
+Displayed Sources
+```
+
+The displayed source metadata must match the retrieved chunk metadata.
+
+Test:
+
+* document title;
+* document path;
+* section title;
+* line ranges.
+
+---
+
+# LangGraph Tests
+
+Verify:
+
+* intent classification;
+* tool routing;
+* query rewriting;
+* retry loops;
+* approval workflows;
+* state transitions.
+
+Prefer assertions on:
+
+* graph state;
+* tool selection;
+* routing decisions.
+
+Avoid asserting exact wording.
+
+---
+
+# LLM Boundary Tests
+
+Do not test model intelligence.
+
+Test:
+
+```text
+input
+   ↓
+tool decision
+   ↓
+retrieval action
+   ↓
+resulting state
+```
+
+Prefer assertions on:
+
+* structured outputs;
+* routing decisions;
+* retrieval requests;
+* graph state.
+
+Avoid exact response wording unless wording is part of a documented contract.
+
+---
+
+# LLM Mocking
+
+Automated tests must never call:
+
+* live OpenAI;
+* live Qwen;
+* live external APIs.
+
+Use:
+
+* fake clients;
+* mocks;
+* fixtures;
+* recorded responses.
+
+All model interaction must go through test doubles of the LLM boundary.
+
+---
+
+# Evaluation Tests
+
+Retrieval evaluation is separate from standard testing.
+
+Potential metrics:
+
+* Hit Rate@K;
+* Recall@K;
+* MRR;
+* NDCG@K.
+
+Evaluation suites may be introduced by future plans.
+
+Evaluation is not a replacement for unit or integration testing.
+
+---
+
+# Coverage Philosophy
+
+Coverage is a signal, not a goal.
+
+Prefer testing:
+
+* retrieval logic;
+* routing decisions;
+* validation rules;
+* source attribution;
+* MCP contracts;
+* approval gates;
+* error handling.
+
+Avoid meaningless tests that only verify framework behavior.
+
+---
+
+# Bug Fix Rule
+
+Every bug fix should follow:
+
+```text
+Failing Test
+    ↓
+Fix
+    ↓
+Passing Test
+```
+
+Whenever practical, add a regression test.
+
+The test should reproduce the original failure.
+
+---
+
+# Local Validation Requirements
+
+Before commit (required after Python bootstrap):
+
+```bash
+uv run ruff format --check .
+uv run ruff check .
+uv run basedpyright
+uv run pytest
+```
+
+Run all commands from repository root.
+
+### Bootstrap Validation Exception
+
+Before `pyproject.toml` exists, documentation-only commits are exempt from the quality commands above.
+
+After Python project initialization is complete, standard validation becomes mandatory for all commits.
+
+---
+
+# Auto-Test Rule
+
+When introducing new business logic:
+
+* create corresponding tests;
+* update existing tests when behavior changes.
+
+Do not leave business logic untested.
+
+Preferred:
+
+```text
+src/knowledge_assistant/retrieval/reranker.py
+    ↓
+tests/unit/retrieval/test_reranker.py
+```
+
+Directory mirroring is encouraged.
+
+---
+
+# Definition of Done
+
+Work is not complete until:
+
+* implementation exists;
+* tests exist;
+* validation passes;
+* documentation exists;
+* active plan is updated;
+* progress documentation is updated.
+
+Code without tests is incomplete.

@@ -1,0 +1,298 @@
+---
+
+description: Repository architecture boundaries and component ownership
+alwaysApply: true
+-----------------
+
+# Repository Architecture
+
+Production RAG Knowledge Assistant is a documentation-driven educational project demonstrating modern enterprise knowledge assistant architecture using LangGraph, MCP, LlamaIndex, Qdrant, hybrid retrieval, and reranking.
+
+Read `AGENTS.md`, `PROJECT.md`, `docs/ARCHITECTURE.md`, `docs/DECISIONS.md`, and `docs/plans/active/` before implementing.
+
+Documentation is the source of truth.
+
+---
+
+# Read-First Order
+
+1. AGENTS.md
+2. PROJECT.md
+3. docs/ARCHITECTURE.md
+4. docs/DECISIONS.md
+5. docs/plans/active/
+6. docs/PROGRESS.md
+
+---
+
+# Documentation Precedence
+
+When sources conflict, use the following precedence:
+
+1. PROJECT.md
+2. docs/ARCHITECTURE.md
+3. docs/DECISIONS.md
+4. docs/plans/active/
+5. docs/PROGRESS.md
+6. Chat Context
+
+Repository artifacts override conversational context.
+
+---
+
+# Documentation Structure
+
+| Location                | Role                                         |
+| ----------------------- | -------------------------------------------- |
+| `PROJECT.md`            | Project vision and scope                     |
+| `docs/ARCHITECTURE.md`  | Component boundaries and system architecture |
+| `docs/DECISIONS.md`     | Architecture decision records                |
+| `docs/PROGRESS.md`      | Delivery chronology                          |
+| `docs/plans/active/`    | Authorizes current implementation scope      |
+| `docs/plans/backlog/`   | Future plans                                 |
+| `docs/plans/completed/` | Completed plans archive                      |
+
+Significant work requires an active plan.
+
+Update `docs/PROGRESS.md` when completing meaningful milestones.
+
+---
+
+# Source Layout
+
+```text
+src/knowledge_assistant/
+    core/           # shared types, IDs, schemas, errors
+    agent/          # LangGraph agent and graph definitions
+    mcp_server/     # Knowledge MCP server
+    retrieval/      # hybrid retrieval, fusion, reranking
+    indexing/       # LlamaIndex ingestion and chunking
+    llm/            # OpenAI-compatible LLM boundary
+    storage/        # Qdrant integration
+    cli/            # CLI entrypoints
+```
+
+Place new code in the package that owns the concern.
+
+Do not create generic packages such as:
+
+```text
+utils
+common
+helpers
+misc
+```
+
+Use explicit bounded responsibilities.
+
+---
+
+# Component Ownership
+
+| Component        | Owns                                                   | Must not own                            |
+| ---------------- | ------------------------------------------------------ | --------------------------------------- |
+| LangGraph Agent  | Conversation handling, routing, tool selection, memory | Retrieval implementation, Qdrant access |
+| MCP Server       | Knowledge tools and resources                          | Agent behavior, conversation management |
+| Retrieval Layer  | Dense retrieval, sparse retrieval, fusion, reranking   | LLM interaction                         |
+| LlamaIndex Layer | Loading, parsing, chunking, indexing                   | Retrieval decisions                     |
+| Qdrant Storage   | Vector storage and metadata                            | Business logic                          |
+| LLM Boundary     | All model calls                                        | Retrieval implementation                |
+
+The agent never interacts with Qdrant directly.
+
+Knowledge access must happen through MCP tools and resources.
+
+---
+
+# Naming Rules
+
+Use domain terms defined by project documentation:
+
+* Agent
+* MCP Server
+* Retrieval Layer
+* Knowledge Base
+* Document
+* Chunk
+* Source Attribution
+
+Python modules and packages must use:
+
+```text
+snake_case
+```
+
+Avoid catch-all names.
+
+---
+
+# Package Initialization
+
+* Root package must contain `__version__`.
+* Use `py.typed`.
+* Add `__init__.py` to created packages.
+* Keep public exports intentional and minimal.
+* Use `uv` for dependency management.
+
+Quality commands (required after Python bootstrap):
+
+```bash
+uv run ruff format --check .
+uv run ruff check .
+uv run basedpyright
+uv run pytest
+```
+
+### Bootstrap Validation Exception
+
+Before `pyproject.toml` exists, documentation-only commits are exempt from the quality commands above.
+
+After Python project initialization is complete, standard validation becomes mandatory for all commits.
+
+---
+
+# Architectural Boundary Rules
+
+## Documentation Drives Implementation
+
+Do not implement features that are not documented.
+
+Implementation must follow:
+
+* PROJECT.md
+* docs/ARCHITECTURE.md
+* docs/DECISIONS.md
+* docs/plans/active/
+
+---
+
+## Agent Owns Conversation
+
+Conversation history belongs to the LangGraph agent.
+
+Knowledge documents belong to the knowledge layer.
+
+Do not store retrieved document content as durable conversation state.
+
+---
+
+## MCP Owns Knowledge Access
+
+All document operations must go through MCP.
+
+Examples:
+
+* search
+* indexing
+* document retrieval
+* statistics
+
+The agent must not bypass MCP.
+
+---
+
+## Retrieval Does Not Call LLM
+
+The retrieval layer is deterministic.
+
+Retrieval components must not call LLMs.
+
+Examples:
+
+* dense retrieval
+* BM25 retrieval
+* fusion
+* reranking
+
+must remain independent from model inference.
+
+---
+
+## Single LLM Boundary
+
+All model calls go through:
+
+```text
+llm/
+```
+
+The LangGraph agent may use the LLM.
+
+The MCP server must not call the LLM.
+
+The retrieval layer must not call the LLM.
+
+The storage layer must not call the LLM.
+
+---
+
+## LLM Context Is Not Durable Memory
+
+Do not rely on the model context window as system memory.
+
+Persist required state explicitly.
+
+---
+
+## Human Approval Required
+
+Potentially destructive indexing operations require explicit user approval.
+
+Examples:
+
+* index rebuild
+* reindexing
+* index replacement
+
+---
+
+# Dependency Flow
+
+Preferred:
+
+```text
+agent
+    ↓
+mcp_server
+    ↓
+retrieval
+    ↓
+storage
+```
+
+```text
+agent
+    ↓
+llm
+```
+
+```text
+indexing
+    ↓
+storage
+```
+
+Forbidden:
+
+```text
+mcp_server → llm
+retrieval → llm
+storage → llm
+storage → agent
+retrieval → agent
+```
+
+The retrieval layer is a service provider.
+
+The agent is the orchestration layer.
+
+---
+
+# Documentation Consistency Rule
+
+When documentation and implementation disagree:
+
+1. Update documentation if the change is intentional.
+2. Update implementation if documentation is authoritative.
+
+Never leave the repository in an inconsistent state.

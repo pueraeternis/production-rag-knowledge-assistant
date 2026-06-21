@@ -1,0 +1,402 @@
+---
+
+description: Documentation and knowledge-management standards
+globs: "**/*.md,**/*.mdc"
+alwaysApply: false
+------------------
+
+# Documentation Standards
+
+Production RAG Knowledge Assistant is an agent-legible repository.
+
+Documentation is the system of record.
+
+Implementation follows documented plans, architecture, and decisions.
+
+This rule governs how knowledge is organized, written, and maintained.
+
+---
+
+# Core Principle
+
+Documentation is a first-class artifact.
+
+The repository is the source of truth.
+
+Important knowledge must exist in repository documentation.
+
+Knowledge that exists only in chat history effectively does not exist.
+
+---
+
+# Documentation Goals
+
+Documentation should help:
+
+* future engineers;
+* future AI agents;
+* reviewers;
+* maintainers.
+
+Documentation should maximize:
+
+* discoverability;
+* agent legibility;
+* maintainability;
+* architectural clarity.
+
+---
+
+# Read-First Order
+
+1. AGENTS.md
+2. PROJECT.md
+3. docs/ARCHITECTURE.md
+4. docs/DECISIONS.md
+5. docs/plans/active/
+6. docs/PROGRESS.md
+
+---
+
+# Documentation Priority
+
+When sources conflict, use the following precedence:
+
+1. PROJECT.md
+2. docs/ARCHITECTURE.md
+3. docs/DECISIONS.md
+4. docs/plans/active/
+5. docs/PROGRESS.md
+6. Chat Context
+
+Repository artifacts override conversational context unless the repository is intentionally being updated.
+
+When documentation and implementation disagree:
+
+* update documentation if the change is intentional;
+* update implementation if documentation is authoritative.
+
+Do not leave the repository in an inconsistent state.
+
+---
+
+# AGENTS.md
+
+AGENTS.md is the repository entry point.
+
+It should contain:
+
+* repository purpose;
+* read-first order;
+* execution workflow;
+* core architectural rules.
+
+AGENTS.md is not a knowledge base.
+
+Avoid turning it into a large reference document.
+
+Place detailed information in dedicated documents.
+
+---
+
+# Project Documentation
+
+## PROJECT.md
+
+PROJECT.md is the north-star document.
+
+It defines:
+
+* project purpose;
+* goals;
+* scope;
+* non-goals;
+* high-level architecture;
+* major user flows.
+
+PROJECT.md should remain stable.
+
+Changes to project vision require deliberate updates.
+
+---
+
+## ARCHITECTURE.md
+
+`docs/ARCHITECTURE.md` is the authoritative architecture reference.
+
+It documents:
+
+* component boundaries;
+* dependency flow;
+* ownership;
+* system interactions.
+
+It should describe:
+
+```text
+LangGraph Agent
+MCP Server
+Retrieval Layer
+Indexing Layer
+Qdrant Storage
+LLM Boundary
+```
+
+Update architecture documentation whenever component responsibilities or boundaries change.
+
+---
+
+## DECISIONS.md
+
+`docs/DECISIONS.md` records meaningful architectural decisions.
+
+Each entry should contain:
+
+* context;
+* decision;
+* consequences.
+
+Optionally include:
+
+* alternatives considered;
+* rejected approaches;
+* trade-offs.
+
+Record decisions that affect:
+
+* architecture;
+* ownership;
+* integration patterns;
+* maintainability.
+
+Do not record trivial implementation details.
+
+---
+
+## PROGRESS.md
+
+`docs/PROGRESS.md` records completed work.
+
+Progress entries should be:
+
+* factual;
+* chronological;
+* concise.
+
+Record completed milestones.
+
+Do not use docs/PROGRESS.md for future planning.
+
+---
+
+# Plans
+
+Plans authorize implementation.
+
+| Location             | Purpose                   |
+| -------------------- | ------------------------- |
+| docs/plans/backlog   | Future work               |
+| docs/plans/active    | Authorized implementation |
+| docs/plans/completed | Archived work             |
+
+Only active plans authorize implementation.
+
+Plans should contain:
+
+* objective;
+* scope;
+* acceptance criteria;
+* implementation steps;
+* risks;
+* checklist.
+
+No implementation without active-plan authorization.
+
+---
+
+# Retrieval Knowledge
+
+Retrieval architecture decisions must be documented.
+
+Examples:
+
+* chunking strategy;
+* chunk metadata design;
+* hybrid retrieval design;
+* reranking strategy;
+* source attribution design;
+* retrieval evaluation methodology.
+
+Retrieval behavior is a core system capability.
+
+Do not allow retrieval design decisions to exist only in source code.
+
+---
+
+# Architectural Decision Records
+
+An ADR entry in docs/DECISIONS.md is required when changing:
+
+* LangGraph architecture;
+* MCP contracts;
+* retrieval architecture;
+* indexing architecture;
+* storage architecture;
+* source attribution design;
+* LLM integration patterns;
+* human-in-the-loop workflows.
+
+Non-trivial architectural choices must be documented.
+
+---
+
+# Generated Documentation
+
+Machine-generated documentation should live under:
+
+```text
+docs/generated/
+```
+
+Examples:
+
+* MCP tool catalogs;
+* API schemas;
+* prompt inventories;
+* configuration references;
+* evaluation reports.
+
+Generated documentation must be reproducible.
+
+Do not manually edit generated output.
+
+Modify the source and regenerate.
+
+---
+
+# Documentation-Driven Development
+
+Before significant implementation:
+
+1. Create or update a plan.
+2. Update architecture documentation if needed.
+3. Record architectural decisions.
+4. Implement within documented scope.
+
+Documentation drives implementation.
+
+Do not build undocumented behavior.
+
+---
+
+# Documentation Update Requirements
+
+Documentation updates are part of implementation.
+
+Update documentation when:
+
+* architecture changes;
+* ownership changes;
+* retrieval behavior changes;
+* MCP contracts change;
+* indexing behavior changes;
+* source attribution changes;
+* major capabilities are introduced.
+
+Apply documentation updates in the same change set as the implementation.
+
+---
+
+# Agent Legibility
+
+Assume future contributors know nothing about the project.
+
+Prefer:
+
+* focused documents;
+* progressive disclosure;
+* explicit terminology;
+* explicit cross-linking.
+
+Use stable domain terms:
+
+```text
+Agent
+MCP Server
+Retrieval Layer
+Indexing Layer
+Document
+Chunk
+Source Attribution
+```
+
+Avoid undocumented assumptions.
+
+Avoid repository knowledge living exclusively in conversations.
+
+---
+
+# Writing Style
+
+Use:
+
+* concise language;
+* active voice;
+* explicit statements;
+* structured sections.
+
+Prefer:
+
+```text
+What
+Why
+How
+```
+
+for non-trivial topics.
+
+State assumptions explicitly.
+
+Avoid:
+
+* marketing language;
+* vague statements;
+* undocumented implications.
+
+Documentation should be project-specific and actionable.
+
+---
+
+# Repository Knowledge Rule
+
+If a discussion results in:
+
+* a decision;
+* an architectural rule;
+* a retrieval strategy;
+* an MCP contract;
+* an indexing workflow;
+* a development convention;
+
+document it in the repository.
+
+Do not rely on memory or chat history.
+
+Knowledge outside the repository effectively does not exist.
+
+---
+
+# Definition of Done
+
+Work is not complete until:
+
+* implementation exists;
+* tests exist when applicable;
+* validation passes (or bootstrap validation exception applies);
+* documentation exists;
+* plans are updated;
+* progress is recorded.
+
+Documentation is part of the deliverable.
+
+It is not a follow-up task.

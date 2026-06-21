@@ -1,0 +1,320 @@
+---
+
+description: How agents and contributors execute work in this repository
+alwaysApply: true
+-----------------
+
+# Development Workflow
+
+Production RAG Knowledge Assistant is an agent-legible repository.
+
+Documentation is the system of record.
+
+Implementation follows documented plans, architecture, and decisions.
+
+Agents and contributors execute work through plans, not ad hoc coding.
+
+---
+
+# Principles
+
+## Documentation Drives Implementation
+
+Do not build behavior that is not documented and authorized by an active plan.
+
+Implementation follows:
+
+* PROJECT.md
+* docs/ARCHITECTURE.md
+* docs/DECISIONS.md
+* docs/plans/active/
+
+---
+
+## Repository as Source of Truth
+
+When code and documentation disagree:
+
+* update documentation if the change is intentional;
+* update code if documentation is authoritative.
+
+Do not leave repository artifacts inconsistent.
+
+---
+
+## Plan Before Code
+
+New implementation requires plan authorization.
+
+Avoid implementing features directly from chat instructions.
+
+Document scope first.
+
+Implement second.
+
+---
+
+## Small Iterations
+
+Deliver one plan increment at a time.
+
+Stay within:
+
+* scope;
+* acceptance criteria;
+* architectural boundaries.
+
+Avoid large speculative implementations.
+
+---
+
+# Documentation Priority
+
+When sources conflict, use the following precedence:
+
+1. PROJECT.md
+2. docs/ARCHITECTURE.md
+3. docs/DECISIONS.md
+4. docs/plans/active/
+5. docs/PROGRESS.md
+6. Chat Context
+
+Repository artifacts override conversation history.
+
+---
+
+# Agent Legibility
+
+Assume future work will be performed by:
+
+* AI agents;
+* engineers unfamiliar with the repository.
+
+Important knowledge must not live exclusively in:
+
+* chat history;
+* private notes;
+* external discussions.
+
+Important decisions must be written into repository documentation.
+
+---
+
+# Read First
+
+Before implementing:
+
+1. AGENTS.md
+2. PROJECT.md
+3. docs/ARCHITECTURE.md
+4. docs/DECISIONS.md
+5. docs/plans/active/
+6. docs/PROGRESS.md
+
+Understand documented architecture before writing code.
+
+---
+
+# Plan Lifecycle
+
+| Stage     | Location                | Purpose                   |
+| --------- | ----------------------- | ------------------------- |
+| Backlog   | `docs/plans/backlog/`   | Future work               |
+| Active    | `docs/plans/active/`    | Authorized implementation |
+| Completed | `docs/plans/completed/` | Archived work             |
+
+Only active plans authorize implementation.
+
+---
+
+# Scope Control
+
+Implement only active plan scope.
+
+If implementation reveals additional work:
+
+1. Stop.
+2. Update or create a plan.
+3. Continue after scope is documented.
+
+Do not silently expand scope.
+
+---
+
+# Agent Execution Workflow
+
+## 1. Orient
+
+Read:
+
+1. AGENTS.md
+2. PROJECT.md
+3. docs/ARCHITECTURE.md
+4. docs/DECISIONS.md
+5. docs/plans/active/
+
+---
+
+## 2. Scope
+
+Confirm work is covered by an active plan.
+
+If not:
+
+* create a plan;
+* extend an existing plan.
+
+---
+
+## 3. Align
+
+Check:
+
+* docs/DECISIONS.md
+* docs/ARCHITECTURE.md
+
+before introducing architectural changes.
+
+---
+
+## 4. Implement
+
+Stay within plan scope.
+
+Respect component ownership:
+
+```text id="q49wzq"
+Agent
+    ↓
+MCP Server
+    ↓
+Retrieval
+    ↓
+Storage
+```
+
+Avoid violating documented boundaries.
+
+---
+
+## 5. Record
+
+Update:
+
+* plan checklist;
+* docs/PROGRESS.md;
+* architecture documentation (when required).
+
+---
+
+## 6. Decide
+
+Non-trivial architectural choices require:
+
+* documentation;
+* ADR entries in docs/DECISIONS.md.
+
+Architecture must not exist only in code.
+
+---
+
+# Feature Workflow
+
+For a new capability:
+
+1. Confirm it is not already covered.
+2. Create or extend a plan.
+3. Define architectural impact.
+4. Activate the plan.
+5. Implement within acceptance criteria.
+6. Update documentation.
+7. Complete only after acceptance criteria are satisfied.
+
+---
+
+# Architectural Decision Workflow
+
+When a change affects:
+
+* component boundaries;
+* ownership;
+* MCP contracts;
+* retrieval architecture;
+* indexing architecture;
+
+perform the following:
+
+1. Check docs/DECISIONS.md.
+2. Add a new decision record if needed.
+3. Update architecture documentation.
+4. Implement the change.
+
+Do not encode architecture exclusively in source code.
+
+---
+
+# Architecture Update Workflow
+
+When implementation changes system structure:
+
+1. Update docs/ARCHITECTURE.md.
+2. Update docs/DECISIONS.md.
+3. Update PROJECT.md if project scope changes.
+4. Update documentation in the same change set as the code.
+
+Architecture and implementation should evolve together.
+
+---
+
+# Progress Tracking
+
+Update docs/PROGRESS.md when completing meaningful milestones.
+
+Examples:
+
+* plan completion;
+* major architectural milestone;
+* significant feature delivery.
+
+Avoid recording trivial edits.
+
+---
+
+# Validation Before Commit
+
+Run all validation commands (required after Python bootstrap):
+
+```bash id="9u4lxq"
+uv run ruff format --check .
+uv run ruff check .
+uv run basedpyright
+uv run pytest
+```
+
+Run commands from repository root.
+
+Do not commit broken code.
+
+### Bootstrap Validation Exception
+
+Before `pyproject.toml` exists, documentation-only commits are exempt from the quality commands above.
+
+After Python project initialization is complete, standard validation becomes mandatory for all commits.
+
+---
+
+# Definition of Complete
+
+Work is complete when:
+
+* implementation exists;
+* tests exist;
+* validation passes (or bootstrap validation exception applies);
+* documentation is updated;
+* acceptance criteria are satisfied;
+* plan checklist is complete;
+* progress documentation is updated.
+
+Incomplete work remains in the active plan.
+
+Code without tests or documentation is incomplete.

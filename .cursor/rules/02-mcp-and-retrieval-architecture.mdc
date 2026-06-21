@@ -1,0 +1,367 @@
+---
+
+description: MCP server, tools, and retrieval architecture
+globs: "**/*mcp*,**/*tool*,**/operations/**,**/retrieval/**"
+alwaysApply: false
+------------------
+
+# MCP Server and Tool Architecture
+
+The Knowledge MCP Server is a capability provider.
+
+It exposes knowledge-related tools and resources to the LangGraph agent.
+
+The MCP server is not an agent.
+
+The MCP server does not reason, plan, or make autonomous decisions.
+
+All reasoning happens in the LangGraph agent.
+
+---
+
+# Architectural Role
+
+```text
+LangGraph Agent
+        ↓
+MCP Client
+        ↓
+Knowledge MCP Server
+        ↓
+Retrieval Layer
+        ↓
+Qdrant
+```
+
+The agent decides:
+
+* whether a tool is needed;
+* which tool to call;
+* how to use retrieved information.
+
+The MCP server provides capabilities.
+
+---
+
+# MCP Responsibilities
+
+The MCP server owns:
+
+* document indexing;
+* document search;
+* document retrieval;
+* source metadata;
+* index statistics.
+
+The MCP server does not own:
+
+* conversation state;
+* agent memory;
+* user intent classification;
+* answer generation;
+* query rewriting.
+
+---
+
+# MCP Tools
+
+Tools should represent narrow capabilities.
+
+Examples:
+
+```text
+search_documents
+show_document
+prepare_indexing
+confirm_indexing
+get_index_stats
+```
+
+Avoid generic tool names:
+
+```text
+process
+execute
+handle
+run
+do_everything
+```
+
+One tool should perform one logical action.
+
+---
+
+# MCP Resources
+
+Resources expose knowledge content.
+
+Examples:
+
+```text
+kb://documents
+kb://documents/{document_id}
+kb://chunks/{chunk_id}
+kb://stats
+```
+
+Resources provide data.
+
+Resources do not execute business logic.
+
+---
+
+# Thin MCP Handlers
+
+Handlers are transport adapters.
+
+Handlers should:
+
+1. validate inputs;
+2. map requests to domain models;
+3. call operations;
+4. map results to MCP responses.
+
+Handlers must not contain:
+
+* retrieval orchestration;
+* agent logic;
+* conversation logic;
+* LLM reasoning.
+
+---
+
+# Operations Layer
+
+Business logic belongs in operations.
+
+Preferred:
+
+```text
+MCP Handler
+      ↓
+Operation
+      ↓
+Retrieval Service
+```
+
+Avoid:
+
+```text
+MCP Handler
+      ↓
+200 lines of business logic
+```
+
+Handlers should remain small and predictable.
+
+---
+
+# Retrieval Responsibilities
+
+The retrieval layer owns:
+
+* dense retrieval;
+* sparse retrieval;
+* result fusion;
+* reranking;
+* source attribution metadata.
+
+The retrieval layer must remain deterministic.
+
+The retrieval layer must not perform agent reasoning.
+
+---
+
+# No LLM Calls Inside MCP
+
+The MCP server must not call LLMs.
+
+The retrieval layer must not call LLMs.
+
+The storage layer must not call LLMs.
+
+Only the LangGraph agent may communicate with the LLM boundary.
+
+Preferred:
+
+```text
+Agent
+   ↓
+LLM
+```
+
+Forbidden:
+
+```text
+MCP Server
+   ↓
+LLM
+```
+
+```text
+Retrieval
+   ↓
+LLM
+```
+
+---
+
+# Dependency Flow
+
+Preferred:
+
+```text
+Agent
+    ↓
+MCP Server
+    ↓
+Operations
+    ↓
+Retrieval
+    ↓
+Storage
+```
+
+Forbidden:
+
+```text
+Storage → Agent
+Retrieval → Agent
+Retrieval → LLM
+MCP Server → LLM
+```
+
+Dependencies should flow downward.
+
+---
+
+# Tool Contracts
+
+Use explicit request and response schemas.
+
+Prefer:
+
+```python
+class SearchDocumentsRequest(BaseModel):
+    query: str
+    top_k: int
+```
+
+```python
+class SearchDocumentsResponse(BaseModel):
+    chunks: list[RetrievedChunk]
+```
+
+Avoid raw dictionaries.
+
+Contracts should remain stable.
+
+---
+
+# Error Handling
+
+Use structured error responses.
+
+Known failures should return stable error codes.
+
+Examples:
+
+```text
+INDEX_NOT_FOUND
+DOCUMENT_NOT_FOUND
+INVALID_QUERY
+INDEXING_IN_PROGRESS
+```
+
+Avoid free-form error handling.
+
+---
+
+# Human-in-the-Loop Operations
+
+Potentially destructive actions require confirmation.
+
+Examples:
+
+* reindexing;
+* index replacement;
+* index rebuild.
+
+Preferred flow:
+
+```text
+prepare_indexing
+      ↓
+preview
+      ↓
+user approval
+      ↓
+confirm_indexing
+```
+
+The MCP server must not modify the index without explicit approval.
+
+---
+
+# Observability
+
+Tool calls should be traceable.
+
+Capture:
+
+| Field        | Description        |
+| ------------ | ------------------ |
+| Tool name    | Stable identifier  |
+| Query        | Retrieval query    |
+| Duration     | Execution time     |
+| Result count | Number of results  |
+| Status       | Success or failure |
+| Error code   | Stable error code  |
+
+Do not log:
+
+* credentials;
+* tokens;
+* API keys;
+* sensitive document contents.
+
+---
+
+# Testing
+
+MCP tools require tests.
+
+Required:
+
+* request validation;
+* response schemas;
+* happy-path behavior;
+* failure-path behavior;
+* retrieval integration tests.
+
+Unit tests should not require:
+
+* external LLMs;
+* remote APIs;
+* production infrastructure.
+
+Tests should remain deterministic.
+
+---
+
+# Architectural Changes
+
+Changes to:
+
+* MCP tool contracts;
+* MCP resources;
+* retrieval interfaces;
+* indexing workflows;
+
+require:
+
+1. an active plan;
+2. documentation updates;
+3. architecture review for non-trivial boundary changes.
+
+Documentation remains the source of truth.
