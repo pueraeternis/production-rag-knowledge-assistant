@@ -1252,7 +1252,7 @@ Plan 10 must not violate dependency flow.
 
 #### Decision
 
-**Allowed imports in `mcp_server` production code:** `knowledge_assistant.core.*`, `knowledge_assistant.retrieval.protocol.Retriever`, `knowledge_assistant.indexing.pipeline.IndexingPipeline`, `pydantic` (in `schemas.py` only).
+**Allowed imports in `mcp_server` production code:** `knowledge_assistant.core.*`, `knowledge_assistant.retrieval.protocol.Retriever`, `knowledge_assistant.indexing.pipeline.IndexingPipeline`, `knowledge_assistant.indexing.pipeline.IndexingResult`, `pydantic` (in `schemas.py` only).
 
 **Forbidden:** `storage`, `qdrant_client`, MCP SDK, LangGraph, OpenAI, LlamaIndex, concrete retrieval internals, `llm/`, `agent/`.
 

@@ -9,14 +9,19 @@ Read the following documents in order before contributing or implementing change
 1. [AGENTS.md](AGENTS.md) — agent and contributor guide
 2. [PROJECT.md](PROJECT.md) — project vision, scope, and goals
 3. [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — system architecture and component boundaries
-4. [docs/plans/active/](docs/plans/active/) — authorized implementation scope
+4. [docs/plans/active/](docs/plans/active/) — authorized implementation scope (empty when no plan is active)
 
 Additional references:
 
 * [docs/DECISIONS.md](docs/DECISIONS.md) — architectural decision records
 * [docs/PROGRESS.md](docs/PROGRESS.md) — development history
+* [docs/plans/backlog/ROADMAP.md](docs/plans/backlog/ROADMAP.md) — long-term direction (informational)
 
 Documentation is the source of truth. Implementation follows active plans.
+
+## Agent Orchestration
+
+Plan 12 delivers the LangGraph agent in `knowledge_assistant.agent` — graph routing, MCP tool adapters, RAG prompts, and `run_turn` for conversational turns. CLI wiring remains a future plan. See [Plan 12](docs/plans/completed/12-langgraph-agent.md) and [docs/PROGRESS.md](docs/PROGRESS.md).
 
 ## Python Setup
 

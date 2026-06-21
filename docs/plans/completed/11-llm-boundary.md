@@ -883,7 +883,7 @@ Do not update `docs/plans/backlog/ROADMAP.md` (informational).
 
 | Item | Target |
 | ---- | ------ |
-| Plan 12 — LangGraph Agent | MCP client, tool orchestration, prompts, memory, RAG workflows |
+| Plan 12 — LangGraph Agent | Completed — [12-langgraph-agent.md](../completed/12-langgraph-agent.md) |
 | Streaming chat completions | Future plan or Plan 12 revision if required |
 | Async `LLMClient` | Future ADR if LangGraph async demands it |
 | Structured output helpers | Plan 12+ if intent routing needs JSON mode |

@@ -23,6 +23,11 @@ class StubLLMClient:
         self._responses = responses
         self._call_index = 0
 
+    @property
+    def call_count(self) -> int:
+        """Number of completed ``chat`` invocations."""
+        return self._call_index
+
     def chat(
         self,
         messages: tuple[ChatMessage, ...],

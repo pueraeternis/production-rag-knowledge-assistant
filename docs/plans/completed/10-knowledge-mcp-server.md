@@ -339,7 +339,7 @@ Plan 10 must not violate dependency flow. Tier 1 handlers need only retrieval an
 * `knowledge_assistant.retrieval.dense`, `.sparse`, `.fusion`, `.rerank`, `.embeddings`
 * `knowledge_assistant.llm`, `knowledge_assistant.agent`
 
-**Assembly rule:** `RerankRetriever(FusionRetriever(...), StubReranker(), ...)` construction lives outside `mcp_server` (CLI bootstrap, Plan 12 wiring, test fixtures).
+**Assembly rule:** `RerankRetriever(FusionRetriever(...), StubReranker(), ...)` construction lives outside `mcp_server` (CLI bootstrap, `agent/wiring.py`, test fixtures).
 
 #### Consequences
 
@@ -714,7 +714,7 @@ Do not update `docs/plans/backlog/ROADMAP.md` (informational).
 | ---- | ------ |
 | Plan 10b — Knowledge Repository Browse | `get_document`, `get_statistics`, storage read primitives |
 | Plan 11 — LLM boundary | OpenAI-compatible client |
-| Plan 12 — LangGraph agent | MCP SDK server + client wrapping Tier 1 handlers |
+| Plan 12 — LangGraph agent | Completed — [12-langgraph-agent.md](../completed/12-langgraph-agent.md); in-process handler adapters (MCP SDK transport deferred to Plan 12c) |
 | URL indexing sources | Future indexing plan |
 | MCP resources | After Tier 2 or Plan 12 |
 | Real BGE runtimes | Backlog |

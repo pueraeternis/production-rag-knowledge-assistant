@@ -4,6 +4,16 @@ Chronological record of completed milestones for Production RAG Knowledge Assist
 
 ---
 
+## Current Status (2026-06-21)
+
+**Latest completed plan:** [Plan 12 — LangGraph Agent](plans/completed/12-langgraph-agent.md) (Phase 7 — Agent Layer).
+
+**Authorized implementation scope:** none — `docs/plans/active/` is empty. Next roadmap phase is **Phase 8 — Evaluation** ([Plan 13 — Evaluation Framework](plans/backlog/ROADMAP.md#phase-8--evaluation)); a backlog plan file is not yet drafted.
+
+**Deferred from Plan 12:** query rewriting and retrieval retry (proposed Plan 12b), MCP SDK transport (proposed Plan 12c), CLI chat UX.
+
+---
+
 ## 2026-06-21 — Repository Governance Bootstrap
 
 **Plan:** [01-project-bootstrap.md](plans/completed/01-project-bootstrap.md)
@@ -57,7 +67,7 @@ Established the shared domain model foundation in `knowledge_assistant.core`:
 
 Established the Qdrant storage boundary in `knowledge_assistant.storage`:
 
-* defined `VectorStore` protocol with five methods (no `search_sparse`);
+* defined `VectorStore` protocol with five methods (`create_collection`, `delete_collection`, `collection_exists`, `upsert_chunks`, `search_dense`; `search_sparse` added in Plan 07);
 * implemented `QdrantVectorStore` with named `dense` and `sparse` vectors;
 * added `ChunkUpsertItem`, `SparseVector`, and payload mapping for nine-field chunk payloads;
 * added `StorageSettings` and `create_qdrant_vector_store` factory;
@@ -200,3 +210,25 @@ Established the OpenAI-compatible model invocation layer in `knowledge_assistant
 * added `httpx` runtime dependency;
 * recorded ADR-035 through ADR-041 in `docs/DECISIONS.md`;
 * documented LLM boundary in `docs/ARCHITECTURE.md`.
+
+---
+
+## 2026-06-21 — LangGraph Agent
+
+**Plan:** [12-langgraph-agent.md](plans/completed/12-langgraph-agent.md)
+
+Established the LangGraph conversational agent in `knowledge_assistant.agent`:
+
+* implemented `StateGraph` with `agent_node`, `tool_node`, `max_iterations`, and conditional `should_continue` routing;
+* added in-memory `AgentState` with message history and tool-iteration guard (`AgentSettings.max_tool_iterations`, default 5);
+* integrated `LLMClient.chat()` using Plan 11 DTOs from `agent_node` only;
+* added `ToolRegistry`, `AgentTool` protocol, and Tier 1 MCP handler adapters in `agent/wiring.py`;
+* added RAG system prompt with grounding and citation contract in `agent/prompts.py`;
+* added `run_turn` public API and `build_agent_graph` factory;
+* added `langgraph` runtime dependency;
+* added unit tests in `tests/unit/agent/` and integration tests in `tests/integration/agent/`;
+* added import-boundary tests for agent core modules.
+
+Plan 12 uses in-process MCP handler adapters (ADR-043 design) rather than MCP SDK transport. Query rewriting, retrieval retry, durable memory, and CLI chat remain deferred per plan non-scope.
+
+**Documentation follow-up (outstanding):** accept ADR-042 through ADR-046 in `docs/DECISIONS.md`.

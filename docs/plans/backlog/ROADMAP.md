@@ -123,27 +123,25 @@ Expose retrieval capabilities through MCP.
 
 Plans:
 
-* Plan 10 — Knowledge MCP Server
+* Plan 10 — Knowledge MCP Server *(completed)*
 
-Deliverables:
+Deliverables *(Plan 10 — implemented)*:
 
-* search_documents
-* get_document
-* get_statistics
-* index_documents
+* `search_documents` — ranked chunk retrieval with source attribution
+* `index_documents_preview` — indexing impact preview without storage mutation
+* `index_documents_apply` — indexing mutation after explicit human approval
+
+Deferred *(not part of Plan 10; future plans)*:
+
+* `get_document` — repository document browse (Tier 2)
+* `get_statistics` — index diagnostics (Tier 2)
+* URL indexing — remote source ingestion (ADR-011 local sources only in Plan 05/10)
+* MCP SDK runtime and transport — handler layer only in Plan 10 (ADR-034); agent uses in-process adapters per Plan 12 (ADR-043 design)
+* MCP resources (`knowledge://…` URIs)
 
 Notes:
 
-index_documents accepts either:
-
-* a document path
-* a directory path
-* a document URL
-* a directory URL
-
-Directory sources are recursively discovered before indexing.
-
-Index modification operations require human approval.
+Local indexing sources accept file or directory paths (`.md`, `.txt`). Directory sources are recursively discovered before indexing. Index modification operations require human approval via `approval_confirmed=True` on the apply handler.
 
 ---
 
@@ -155,13 +153,17 @@ Introduce model interaction boundaries.
 
 Plans:
 
-* Plan 11 — LLM Boundary
+* Plan 11 — LLM Boundary *(completed)*
 
-Deliverables:
+Deliverables *(Plan 11 — implemented)*:
 
-* OpenAI-compatible client
-* generation settings
-* prompt contracts
+* OpenAI-compatible `LLMClient` chat protocol
+* generation settings and environment configuration
+* typed LLM message, generation, and tool-call transport contracts (`ChatMessage`, `ToolDefinition`, `ToolCall`, `GenerationResult`)
+
+Notes:
+
+“Prompt contracts” in this phase means **typed LLM transport contracts**, not RAG or system prompt templates. RAG prompt templates, citation rendering, and agent-side prompt assembly were delivered in Plan 12.
 
 ---
 
@@ -173,15 +175,24 @@ Build the conversational assistant.
 
 Plans:
 
-* Plan 12 — LangGraph Agent
+* Plan 12 — LangGraph Agent *(completed: [12-langgraph-agent.md](../completed/12-langgraph-agent.md))*
 
-Deliverables:
+Deliverables *(Plan 12 — implemented)*:
 
-* conversation handling
-* tool usage
-* MCP integration
-* query rewriting
-* retrieval retry flow
+* LangGraph agent orchestration (`agent_node`, `tool_node`, conditional routing)
+* conversation handling with in-memory graph state
+* MCP Tier 1 tool adapters (`search_documents`, `index_documents_preview`, `index_documents_apply`)
+* RAG prompt templates with citation contract
+* tool registry and max tool-iteration guard
+
+Deferred *(not part of Plan 12; future plans)*:
+
+* query rewriting and retrieval retry — proposed **Plan 12b**
+* MCP SDK client/server transport — proposed **Plan 12c**
+* CLI chat UX and interactive approval prompts
+* durable conversation memory and LangGraph checkpointers
+
+**Next roadmap phase:** Phase 8 — Evaluation (Plan 13). No plan file is in backlog yet; see Phase 8 below.
 
 ---
 
