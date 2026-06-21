@@ -3,6 +3,20 @@ __pycache__/
 *.py[codz]
 *$py.class
 
+# Local
+
+.local
+# Cursor
+.cursor/
+.cursor/rules/
+.cursor/rules/00-repository-architecture.mdc
+.cursor/rules/01-python-standards.mdc
+.cursor/rules/02-python-bootstrap.mdc
+.cursor/rules/03-testing-standards.mdc
+.cursor/rules/04-development-workflow.mdc
+.cursor/rules/05-architecture-update-workflow.mdc
+.cursor/rules/06-git-standards.mdc
+
 # C extensions
 *.so
 
