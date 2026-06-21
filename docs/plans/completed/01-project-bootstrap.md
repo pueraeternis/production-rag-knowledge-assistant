@@ -40,7 +40,7 @@ This plan does **not** authorize:
 * document corpus generation;
 * evaluation suites.
 
-Python bootstrap is authorized by [Plan 02 — Python Bootstrap](../active/02-python-bootstrap.md).
+Python bootstrap is authorized by [Plan 02 — Python Bootstrap](02-python-bootstrap.md).
 
 ---
 

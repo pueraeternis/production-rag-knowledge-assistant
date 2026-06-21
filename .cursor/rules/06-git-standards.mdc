@@ -204,7 +204,7 @@ Implementation commits must remain within active-plan scope.
 If the relationship is not obvious, reference the plan:
 
 ```text
-Plan: docs/plans/active/02-python-bootstrap.md
+Plan: docs/plans/completed/02-python-bootstrap.md
 ```
 
 in the commit body.

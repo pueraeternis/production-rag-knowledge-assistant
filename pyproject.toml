@@ -42,7 +42,7 @@ quote-style = "double"
 [tool.basedpyright]
 include = ["src/knowledge_assistant", "tests"]
 pythonVersion = "3.12"
-typeCheckingMode = "standard"
+typeCheckingMode = "strict"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
