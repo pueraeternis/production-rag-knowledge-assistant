@@ -8,7 +8,10 @@ from conftest import FakeVectorStore
 
 from knowledge_assistant.core.indexing import IndexingSource, IndexingSourceKind
 from knowledge_assistant.indexing.config import IndexingSettings
-from knowledge_assistant.indexing.embeddings import StubEmbeddingProvider
+from knowledge_assistant.indexing.embeddings import (
+    StubEmbeddingProvider,
+    StubSparseEmbeddingProvider,
+)
 from knowledge_assistant.indexing.pipeline import IndexingPipeline
 
 FIXTURES_DIR = Path(__file__).parents[2] / "unit" / "indexing" / "fixtures"
@@ -36,6 +39,7 @@ class TestIndexingPipelineIntegration:
         return IndexingPipeline(
             vector_store=fake_vector_store,
             embedding_provider=StubEmbeddingProvider(dimension=8),
+            sparse_embedding_provider=StubSparseEmbeddingProvider(),
             settings=settings,
         )
 
@@ -92,11 +96,13 @@ class TestIndexingPipelineIntegration:
         first_pipeline = IndexingPipeline(
             vector_store=first_store,
             embedding_provider=StubEmbeddingProvider(dimension=8),
+            sparse_embedding_provider=StubSparseEmbeddingProvider(),
             settings=settings,
         )
         second_pipeline = IndexingPipeline(
             vector_store=second_store,
             embedding_provider=StubEmbeddingProvider(dimension=8),
+            sparse_embedding_provider=StubSparseEmbeddingProvider(),
             settings=settings,
         )
 
@@ -130,6 +136,7 @@ class TestIndexingPipelineIntegration:
         pipeline = IndexingPipeline(
             vector_store=fake_vector_store,
             embedding_provider=embedding_provider,
+            sparse_embedding_provider=StubSparseEmbeddingProvider(),
             settings=settings,
         )
 
@@ -146,6 +153,7 @@ class TestIndexingPipelineIntegration:
         pipeline = IndexingPipeline(
             vector_store=existing_store,
             embedding_provider=StubEmbeddingProvider(dimension=8),
+            sparse_embedding_provider=StubSparseEmbeddingProvider(),
             settings=settings,
         )
 
@@ -212,6 +220,7 @@ class TestIndexingPipelineIntegration:
         pipeline = IndexingPipeline(
             vector_store=fake_vector_store,
             embedding_provider=StubEmbeddingProvider(dimension=8),
+            sparse_embedding_provider=StubSparseEmbeddingProvider(),
             settings=settings,
         )
 

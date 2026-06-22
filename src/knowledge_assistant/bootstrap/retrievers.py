@@ -18,9 +18,9 @@ from knowledge_assistant.retrieval import (
     RerankRetrievalSettings,
     RerankRetriever,
     Retriever,
+    SparseQueryEmbeddingProvider,
     SparseRetriever,
     StubReranker,
-    StubSparseQueryEmbeddingProvider,
 )
 from knowledge_assistant.storage import VectorStore
 
@@ -68,6 +68,7 @@ def build_retrieval_stack(
     settings: BootstrapSettings,
     vector_store: VectorStore,
     query_embedding_provider: QueryEmbeddingProvider,
+    sparse_query_embedding_provider: SparseQueryEmbeddingProvider,
 ) -> RetrievalStack:
     """Build the shared dense/sparse/fusion/rerank stack for one vector store."""
     dense_retriever = DenseRetriever(
@@ -77,7 +78,7 @@ def build_retrieval_stack(
     )
     sparse_retriever = SparseRetriever(
         vector_store=vector_store,
-        embedding_provider=StubSparseQueryEmbeddingProvider(),
+        embedding_provider=sparse_query_embedding_provider,
     )
     fusion_retriever = FusionRetriever(
         dense_retriever=dense_retriever,

@@ -15,7 +15,8 @@ from knowledge_assistant.embeddings.runtime import (
 def create_dense_embedding_runtime(
     settings: EmbeddingRuntimeSettings,
 ) -> DenseEmbeddingRuntime:
-    """Construct a dense embedding runtime for the given settings.
+    """
+    Construct a dense embedding runtime for the given settings.
 
     Device availability is validated before model construction. When ``device`` is
     ``cuda`` or ``mps`` but the accelerator is unavailable, raises

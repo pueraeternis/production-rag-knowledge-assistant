@@ -9,7 +9,7 @@ from knowledge_assistant.indexing.config import IndexingSettings
 from knowledge_assistant.indexing.documents import discover_files
 from knowledge_assistant.indexing.embeddings import (
     EmbeddingProvider,
-    sparse_placeholder_vector,
+    SparseEmbeddingProvider,
 )
 from knowledge_assistant.indexing.exceptions import EmbeddingDimensionError
 from knowledge_assistant.indexing.ids import document_id_for_path
@@ -37,10 +37,12 @@ class IndexingPipeline:
         *,
         vector_store: VectorStore,
         embedding_provider: EmbeddingProvider,
+        sparse_embedding_provider: SparseEmbeddingProvider,
         settings: IndexingSettings,
     ) -> None:
         self._vector_store = vector_store
         self._embedding_provider = embedding_provider
+        self._sparse_embedding_provider = sparse_embedding_provider
         self._settings = settings
 
     def preview_indexing(
@@ -105,13 +107,14 @@ class IndexingPipeline:
             )
 
         dense_vectors = self._embedding_provider.embed_texts(chunk_texts)
-        sparse_vector = sparse_placeholder_vector()
+        sparse_vectors = self._sparse_embedding_provider.embed_sparse_texts(chunk_texts)
 
         upsert_items: list[ChunkUpsertItem] = []
         vector_index = 0
         for _, metadata, chunks in loaded_documents:
             for chunk in chunks:
                 dense_vector = dense_vectors[vector_index]
+                sparse_vector = sparse_vectors[vector_index]
                 vector_index += 1
                 self._validate_dense_vector(dense_vector)
                 upsert_items.append(

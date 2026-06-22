@@ -15,6 +15,10 @@ from knowledge_assistant.embeddings.exceptions import (
     EmbeddingDeviceError,
     EmbeddingDimensionMismatchError,
 )
+from knowledge_assistant.embeddings.sparse_conversion import (
+    SparseVectorPayload,
+    lexical_weights_to_sparse_payload,
+)
 
 
 @runtime_checkable
@@ -37,6 +41,24 @@ class DenseEmbeddingRuntime(Protocol):
 
     def embed_query(self, text: str) -> tuple[float, ...]:
         """Return one dense embedding for a single search query."""
+        ...
+
+    def embed_passages_sparse(
+        self,
+        texts: tuple[str, ...],
+    ) -> tuple[SparseVectorPayload, ...]:
+        """Return one sparse embedding per passage text, preserving input order."""
+        ...
+
+    def embed_query_sparse(self, text: str) -> SparseVectorPayload:
+        """Return one sparse embedding for a single search query."""
+        ...
+
+    def embed_passages_dual(
+        self,
+        texts: tuple[str, ...],
+    ) -> tuple[tuple[tuple[float, ...], ...], tuple[SparseVectorPayload, ...]]:
+        """Return dense and sparse embeddings per passage in one model forward pass."""
         ...
 
 
@@ -198,6 +220,39 @@ class BgeM3FlagEmbeddingRuntime:
         raw_vector = self._encode_query(text)
         return self._finalize_vector(raw_vector)
 
+    def embed_passages_sparse(
+        self,
+        texts: tuple[str, ...],
+    ) -> tuple[SparseVectorPayload, ...]:
+        if not texts:
+            return ()
+        output = self._encode_passages_sparse(texts)
+        return tuple(
+            _sparse_payload_from_lexical_weights(weights)
+            for weights in output["lexical_weights"]
+        )
+
+    def embed_query_sparse(self, text: str) -> SparseVectorPayload:
+        output = self._encode_query_sparse(text)
+        return _sparse_payload_from_lexical_weights(output["lexical_weights"][0])
+
+    def embed_passages_dual(
+        self,
+        texts: tuple[str, ...],
+    ) -> tuple[tuple[tuple[float, ...], ...], tuple[SparseVectorPayload, ...]]:
+        if not texts:
+            return (), ()
+        output = self._encode_passages_dual(texts)
+        dense_vectors = tuple(
+            self._finalize_vector(vector)
+            for vector in _vector_rows_from_dense_output(output["dense_vecs"])
+        )
+        sparse_vectors = tuple(
+            _sparse_payload_from_lexical_weights(weights)
+            for weights in _lexical_weight_rows_from_output(output["lexical_weights"])
+        )
+        return dense_vectors, sparse_vectors
+
     def _encode_passages(self, texts: tuple[str, ...]) -> list[tuple[float, ...]]:
         output = cast(
             "dict[str, object]",
@@ -226,6 +281,63 @@ class BgeM3FlagEmbeddingRuntime:
         rows = _vector_rows_from_dense_output(output["dense_vecs"])
         return rows[0]
 
+    def _encode_passages_sparse(
+        self,
+        texts: tuple[str, ...],
+    ) -> dict[str, list[dict[int | str, float]]]:
+        output = cast(
+            "dict[str, object]",
+            self._model.encode(  # type: ignore[attr-defined]
+                list(texts),
+                batch_size=self.settings.batch_size,
+                max_length=self.settings.max_length,
+                return_dense=False,
+                return_sparse=True,
+                return_colbert_vecs=False,
+            ),
+        )
+        return {
+            "lexical_weights": _lexical_weight_rows_from_output(
+                output["lexical_weights"],
+            ),
+        }
+
+    def _encode_query_sparse(
+        self,
+        text: str,
+    ) -> dict[str, list[dict[int | str, float]]]:
+        output = cast(
+            "dict[str, object]",
+            self._model.encode_queries(  # type: ignore[attr-defined]
+                [text],
+                max_length=self.settings.max_length,
+                return_dense=False,
+                return_sparse=True,
+                return_colbert_vecs=False,
+            ),
+        )
+        return {
+            "lexical_weights": _lexical_weight_rows_from_output(
+                output["lexical_weights"],
+            ),
+        }
+
+    def _encode_passages_dual(
+        self,
+        texts: tuple[str, ...],
+    ) -> dict[str, object]:
+        return cast(
+            "dict[str, object]",
+            self._model.encode(  # type: ignore[attr-defined]
+                list(texts),
+                batch_size=self.settings.batch_size,
+                max_length=self.settings.max_length,
+                return_dense=True,
+                return_sparse=True,
+                return_colbert_vecs=False,
+            ),
+        )
+
     def _finalize_vector(self, vector: tuple[float, ...]) -> tuple[float, ...]:
         validated = validate_vector_dimension(
             vector,
@@ -234,3 +346,26 @@ class BgeM3FlagEmbeddingRuntime:
         if self.settings.normalize_embeddings:
             return l2_normalize(validated)
         return validated
+
+
+def _lexical_weight_rows_from_output(
+    lexical_weights: object,
+) -> list[dict[int | str, float]]:
+    if not isinstance(lexical_weights, list):
+        msg = "BGE-M3 runtime returned unsupported lexical_weights shape"
+        raise TypeError(msg)
+
+    rows: list[dict[int | str, float]] = []
+    typed_rows = cast("list[object]", lexical_weights)
+    for item in typed_rows:
+        if not isinstance(item, dict):
+            msg = "BGE-M3 runtime returned unsupported lexical weight row"
+            raise TypeError(msg)
+        rows.append(cast("dict[int | str, float]", item))
+    return rows
+
+
+def _sparse_payload_from_lexical_weights(
+    weights: dict[int | str, float],
+) -> SparseVectorPayload:
+    return lexical_weights_to_sparse_payload(weights)

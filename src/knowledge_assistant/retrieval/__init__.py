@@ -17,6 +17,7 @@ from knowledge_assistant.retrieval.config import (
 from knowledge_assistant.retrieval.dense import DenseRetriever
 from knowledge_assistant.retrieval.embeddings import (
     BgeM3QueryEmbeddingProvider,
+    BgeM3SparseQueryEmbeddingProvider,
     QueryEmbeddingProvider,
     SparseQueryEmbeddingProvider,
     StubQueryEmbeddingProvider,
@@ -51,6 +52,7 @@ __all__ = [
     "FusionRetrievalSettings",
     "FusionRetriever",
     "BgeM3QueryEmbeddingProvider",
+    "BgeM3SparseQueryEmbeddingProvider",
     "QueryEmbeddingProvider",
     "RerankerMode",
     "parse_reranker_mode",

@@ -7,7 +7,10 @@ import pytest
 
 from knowledge_assistant.core import indexing as core_indexing
 from knowledge_assistant.indexing.config import IndexingSettings
-from knowledge_assistant.indexing.embeddings import StubEmbeddingProvider
+from knowledge_assistant.indexing.embeddings import (
+    StubEmbeddingProvider,
+    StubSparseEmbeddingProvider,
+)
 from knowledge_assistant.indexing.pipeline import IndexingPipeline
 from knowledge_assistant.storage.models import ChunkUpsertItem, SparseVector
 
@@ -44,6 +47,7 @@ class TestIndexingPipelineUpsertAssembly:
         pipeline = IndexingPipeline(
             vector_store=vector_store,
             embedding_provider=StubEmbeddingProvider(dimension=8),
+            sparse_embedding_provider=StubSparseEmbeddingProvider(),
             settings=settings,
         )
         result = pipeline.index_documents((source,))
@@ -53,4 +57,5 @@ class TestIndexingPipelineUpsertAssembly:
         item = captured_items[0][0]
         assert item.document_metadata.title == "sample"
         assert len(item.dense_vector) == 8
-        assert item.sparse_vector == SparseVector(indices=(0,), values=(1.0,))
+        assert item.sparse_vector.indices
+        assert item.sparse_vector != SparseVector(indices=(0,), values=(1.0,))

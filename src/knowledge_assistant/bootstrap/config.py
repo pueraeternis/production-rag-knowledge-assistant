@@ -22,7 +22,7 @@ EmbeddingMode = Literal["stub", "real"]
 
 STUB_PIPELINE_LABEL = "dense + sparse → fusion (RRF) → rerank (stub embeddings)"
 REAL_PIPELINE_LABEL = (
-    "dense (bge-m3) + sparse → fusion (RRF) → rerank (stub embeddings)"
+    "dense (bge-m3) + sparse (bge-m3) → fusion (RRF) → rerank (stub embeddings)"
 )
 
 
@@ -39,8 +39,9 @@ def retrieval_pipeline_label(
         return STUB_PIPELINE_LABEL
 
     dense_part = "dense (bge-m3)" if embedding_mode == "real" else "dense"
+    sparse_part = "sparse (bge-m3)" if embedding_mode == "real" else "sparse"
     rerank_part = reranker_model_name or "bge-reranker"
-    return f"{dense_part} + sparse → fusion (RRF) → rerank ({rerank_part})"
+    return f"{dense_part} + {sparse_part} → fusion (RRF) → rerank ({rerank_part})"
 
 
 @dataclass(frozen=True, slots=True)

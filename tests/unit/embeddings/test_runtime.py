@@ -15,7 +15,10 @@ from knowledge_assistant.embeddings import (
     EmbeddingRuntimeSettings,
     create_dense_embedding_runtime,
 )
-from knowledge_assistant.embeddings.exceptions import EmbeddingDeviceError
+from knowledge_assistant.embeddings.exceptions import (
+    EmbeddingDeviceError,
+    EmbeddingRuntimeError,
+)
 from knowledge_assistant.embeddings.runtime import (
     l2_normalize,
     validate_device_available,
@@ -31,20 +34,25 @@ class FakeFlagModel:
         self,
         sentences: list[str],
         **kwargs: object,
-    ) -> dict[str, list[list[float]]]:
+    ) -> dict[str, list[list[float]] | list[dict[int, float]]]:
         self.encode_calls.append({"sentences": sentences, "kwargs": kwargs})
         return {
             "dense_vecs": [[float(index + 1)] * 4 for index, _ in enumerate(sentences)],
+            "lexical_weights": [
+                {10 + index: 0.5 + index, 20 + index: 0.25}
+                for index, _ in enumerate(sentences)
+            ],
         }
 
     def encode_queries(
         self,
         queries: list[str],
         **kwargs: object,
-    ) -> dict[str, list[list[float]]]:
+    ) -> dict[str, list[list[float]] | list[dict[int, float]]]:
         self.encode_queries_calls.append({"queries": queries, "kwargs": kwargs})
         return {
             "dense_vecs": [[float(index + 10)] * 4 for index, _ in enumerate(queries)],
+            "lexical_weights": [{100 + index: 0.7} for index, _ in enumerate(queries)],
         }
 
 
@@ -208,6 +216,77 @@ class TestBgeM3FlagEmbeddingRuntime:
             runtime = BgeM3FlagEmbeddingRuntime(settings=runtime_settings)
             with pytest.raises(TypeError, match="unsupported dense_vecs shape"):
                 runtime.embed_passages(("a",))
+
+
+class TestBgeM3SparseRuntime:
+    def test_embed_passages_sparse_uses_encode_with_sparse(
+        self,
+        runtime_settings: EmbeddingRuntimeSettings,
+    ) -> None:
+        with patch("FlagEmbedding.BGEM3FlagModel", FakeFlagModel):
+            runtime = BgeM3FlagEmbeddingRuntime(settings=runtime_settings)
+            model = cast("FakeFlagModel", runtime._model)  # pyright: ignore[reportPrivateUsage]
+            payloads = runtime.embed_passages_sparse(("chunk-a", "chunk-b"))
+
+        assert len(payloads) == 2
+        assert payloads[0] == ((10, 20), (0.5, 0.25))
+        encode_kwargs = model.encode_calls[0]["kwargs"]
+        assert encode_kwargs["return_dense"] is False
+        assert encode_kwargs["return_sparse"] is True
+        assert encode_kwargs["return_colbert_vecs"] is False
+
+    def test_embed_query_sparse_uses_encode_queries(
+        self,
+        runtime_settings: EmbeddingRuntimeSettings,
+    ) -> None:
+        with patch("FlagEmbedding.BGEM3FlagModel", FakeFlagModel):
+            runtime = BgeM3FlagEmbeddingRuntime(settings=runtime_settings)
+            model = cast("FakeFlagModel", runtime._model)  # pyright: ignore[reportPrivateUsage]
+            indices, values = runtime.embed_query_sparse("search me")
+
+        assert indices == (100,)
+        assert values == (0.7,)
+        query_kwargs = model.encode_queries_calls[0]["kwargs"]
+        assert query_kwargs["return_dense"] is False
+        assert query_kwargs["return_sparse"] is True
+        assert query_kwargs["return_colbert_vecs"] is False
+
+    def test_embed_passages_dual_returns_dense_and_sparse(
+        self,
+        runtime_settings: EmbeddingRuntimeSettings,
+    ) -> None:
+        with patch("FlagEmbedding.BGEM3FlagModel", FakeFlagModel):
+            runtime = BgeM3FlagEmbeddingRuntime(settings=runtime_settings)
+            model = cast("FakeFlagModel", runtime._model)  # pyright: ignore[reportPrivateUsage]
+            dense_vectors, sparse_vectors = runtime.embed_passages_dual(("chunk-a",))
+
+        assert len(dense_vectors) == 1
+        assert len(sparse_vectors) == 1
+        encode_kwargs = model.encode_calls[0]["kwargs"]
+        assert encode_kwargs["return_dense"] is True
+        assert encode_kwargs["return_sparse"] is True
+        assert encode_kwargs["return_colbert_vecs"] is False
+
+    def test_empty_sparse_weights_raise(
+        self,
+        runtime_settings: EmbeddingRuntimeSettings,
+    ) -> None:
+        class EmptySparseModel(FakeFlagModel):
+            def encode_queries(
+                self,
+                queries: list[str],
+                **kwargs: object,
+            ) -> dict[str, list[list[float]] | list[dict[int, float]]]:
+                self.encode_queries_calls.append({"queries": queries, "kwargs": kwargs})
+                return {"dense_vecs": [[1.0] * 4], "lexical_weights": [{}]}
+
+        with patch("FlagEmbedding.BGEM3FlagModel", EmptySparseModel):
+            runtime = BgeM3FlagEmbeddingRuntime(settings=runtime_settings)
+            with pytest.raises(
+                EmbeddingRuntimeError,
+                match="no non-zero sparse entries",
+            ):
+                runtime.embed_query_sparse("empty sparse")
 
 
 class TestDeviceValidation:

@@ -6,13 +6,33 @@ Chronological record of completed milestones for Production RAG Knowledge Assist
 
 ## Current Status (2026-06-22)
 
-**Latest completed plan:** [Plan 19 — Interactive Chat Demo](plans/completed/19-interactive-chat-demo.md) (Phase 14 — Interactive Chat Experience).
+**Latest completed plan:** [Plan 20 — Real Sparse Embeddings Integration](plans/completed/20-real-sparse-embeddings-integration.md) (Phase 15 — Real Sparse Embeddings Integration).
 
-**Current phase:** Phase 14 complete. See [ROADMAP.md](plans/backlog/ROADMAP.md) for future direction.
+**Current phase:** Phase 15 complete. See [ROADMAP.md](plans/backlog/ROADMAP.md) for future direction.
 
 **Authorized implementation scope:** none (no active plan).
 
 **Deferred from Plan 12:** query rewriting and retrieval retry (proposed Plan 12b), MCP SDK transport (proposed Plan 12c).
+
+---
+
+## 2026-06-22 — Real Sparse Embeddings Integration
+
+**Plan:** [20-real-sparse-embeddings-integration.md](plans/completed/20-real-sparse-embeddings-integration.md)
+
+Replaced ADR-010 sparse placeholders and stub-only query sparse paths with real BGE-M3 lexical vectors:
+
+* added `embeddings/sparse_conversion.py` with `lexical_weights_to_sparse_payload` and `SparseVectorPayload`;
+* extended `BgeM3FlagEmbeddingRuntime` with `embed_passages_sparse`, `embed_query_sparse`, and `embed_passages_dual`;
+* added `SparseEmbeddingProvider`, `StubSparseEmbeddingProvider`, and `BgeM3SparseEmbeddingProvider` in indexing;
+* added `BgeM3SparseQueryEmbeddingProvider` in retrieval;
+* `IndexingPipeline` accepts `sparse_embedding_provider` and upserts per-chunk sparse vectors;
+* bootstrap wires sparse providers from `RAG_EMBEDDING_MODE` (stub/real) for indexing and retrieval;
+* `build_retrieval_stack` accepts injected `sparse_query_embedding_provider`; pipeline label reports `sparse (bge-m3)` in real mode;
+* unit and integration tests with mocked FlagEmbedding; optional `@pytest.mark.embedding_model` sparse smoke test;
+* recorded ADR-081 through ADR-086 in `docs/DECISIONS.md`;
+* documented sparse write/read paths in `docs/ARCHITECTURE.md` and `README.md`;
+* validation suite passed: ruff format, ruff check, basedpyright, pytest (587 tests, 4 deselected model markers).
 
 ---
 

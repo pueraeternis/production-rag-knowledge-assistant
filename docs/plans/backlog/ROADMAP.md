@@ -350,6 +350,30 @@ Indexing sparse vector generation remains a separate concern (see ADR-020). This
 
 ---
 
+# Phase 15 — Real Sparse Embeddings Integration
+
+Goal:
+
+Complete the hybrid retrieval data path with real BGE-M3 sparse (lexical) vectors on indexing write and retrieval query paths.
+
+Plans:
+
+* Plan 20 — Real Sparse Embeddings Integration *(completed)*
+
+Deliverables *(Plan 20 — implemented)*:
+
+* `lexical_weights_to_sparse_payload` and sparse methods on shared `BgeM3FlagEmbeddingRuntime`
+* `SparseEmbeddingProvider` / `BgeM3SparseEmbeddingProvider` (indexing write path)
+* `BgeM3SparseQueryEmbeddingProvider` (retrieval query path)
+* bootstrap sparse provider selection coupled to `RAG_EMBEDDING_MODE`
+* per-chunk sparse vectors in `IndexingPipeline`; full reindex required after migration (ADR-084)
+
+Notes:
+
+`RAG_EMBEDDING_MODE=real` enables real dense **and** sparse together. Meaningful sparse/fusion evaluation requires approved reindex after enabling real mode.
+
+---
+
 # Phase 12 — Real Reranker Integration
 
 Goal:
@@ -394,7 +418,7 @@ Notes:
 
 Requires Plan 14 corpus, Plan 15 bootstrap workflow, and real model integration (Phases 11–12) for meaningful absolute benchmark quality. Framework and benchmark from Plan 13 are prerequisites. Stub provider modes verify wiring without authoritative model-quality claims (ADR-070).
 
-**Next roadmap phase:** none — Phase 14 complete. See backlog for follow-up work.
+**Next roadmap phase:** none — Phase 15 complete. See backlog for follow-up work.
 
 Goal:
 

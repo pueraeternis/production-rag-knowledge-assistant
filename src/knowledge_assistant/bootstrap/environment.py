@@ -20,16 +20,20 @@ from knowledge_assistant.embeddings import (
 )
 from knowledge_assistant.indexing import (
     BgeM3EmbeddingProvider,
+    BgeM3SparseEmbeddingProvider,
     IndexingPipeline,
     StubEmbeddingProvider,
+    StubSparseEmbeddingProvider,
 )
 from knowledge_assistant.indexing.documents import discover_files
 from knowledge_assistant.retrieval import (
     BgeM3QueryEmbeddingProvider,
+    BgeM3SparseQueryEmbeddingProvider,
     BgeReranker,
     RerankRetriever,
     StubQueryEmbeddingProvider,
     StubReranker,
+    StubSparseQueryEmbeddingProvider,
 )
 from knowledge_assistant.storage import VectorStore, create_qdrant_vector_store
 
@@ -107,18 +111,25 @@ def build_demo_environment(
     if resolved_settings.embedding_mode == "real":
         runtime = _build_dense_embedding_runtime(resolved_settings)
         embedding_provider = BgeM3EmbeddingProvider(runtime=runtime)
+        sparse_embedding_provider = BgeM3SparseEmbeddingProvider(runtime=runtime)
         query_embedding_provider = BgeM3QueryEmbeddingProvider(runtime=runtime)
+        sparse_query_embedding_provider = BgeM3SparseQueryEmbeddingProvider(
+            runtime=runtime,
+        )
     else:
         embedding_provider = StubEmbeddingProvider(
             dimension=resolved_settings.dense_vector_size,
         )
+        sparse_embedding_provider = StubSparseEmbeddingProvider()
         query_embedding_provider = StubQueryEmbeddingProvider(
             dimension=resolved_settings.dense_vector_size,
         )
+        sparse_query_embedding_provider = StubSparseQueryEmbeddingProvider()
 
     indexing_pipeline = IndexingPipeline(
         vector_store=resolved_store,
         embedding_provider=embedding_provider,
+        sparse_embedding_provider=sparse_embedding_provider,
         settings=resolved_settings.indexing_settings,
     )
 
@@ -126,6 +137,7 @@ def build_demo_environment(
         settings=resolved_settings,
         vector_store=resolved_store,
         query_embedding_provider=query_embedding_provider,
+        sparse_query_embedding_provider=sparse_query_embedding_provider,
     )
 
     return DemoEnvironment(

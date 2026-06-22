@@ -42,6 +42,17 @@ class BgeM3QueryEmbeddingProvider:
         return self.runtime.embed_query(text)
 
 
+@dataclass(frozen=True, slots=True)
+class BgeM3SparseQueryEmbeddingProvider:
+    """Sparse query-path provider delegating to a shared embedding runtime."""
+
+    runtime: DenseEmbeddingRuntime
+
+    def embed_query(self, text: str) -> SparseQueryVector:
+        indices, values = self.runtime.embed_query_sparse(text)
+        return SparseQueryVector(indices=indices, values=values)
+
+
 def _hash_embed_text(text: str, *, dimension: int) -> QueryEmbeddingVector:
     digest = hashlib.sha256(text.encode("utf-8")).digest()
     values: list[float] = []

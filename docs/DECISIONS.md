@@ -2543,3 +2543,202 @@ Plan 12 delivers `run_turn` but no user-facing execution path. Chat loop logic m
 #### Consequences
 
 * Predictable operator-visible behavior; explicit `--no-stream` for broken SSE providers.
+
+---
+
+### ADR-081: Real Sparse Embedding Ownership
+
+**Status:** Accepted
+
+**Date:** 2026-06-22
+
+#### Context
+
+ADR-019 assigns sparse write-path ownership to indexing (deferred) and query-path ownership to retrieval (Plan 07). ADR-010 placeholder and stub query embeddings block meaningful hybrid retrieval. Plan 16 added shared dense runtime without addressing sparse.
+
+#### Decision
+
+* **Indexing** owns write-path sparse embedding via `SparseEmbeddingProvider.embed_sparse_texts` in `indexing/embeddings.py`.
+* **Retrieval** owns query-path sparse embedding via `SparseQueryEmbeddingProvider.embed_query` in `retrieval/embeddings.py`.
+* **`knowledge_assistant.embeddings`** owns BGE-M3 sparse model execution and lexical-weight conversion — same package as dense runtime (ADR-055).
+* **Storage** receives pre-computed `SparseVector` on upsert and `(indices, values)` on search — unchanged (ADR-006, ADR-019).
+* `llm/` must not implement or import sparse embedding runtime code.
+* Layer protocols remain in owning packages; adapters delegate to shared runtime.
+
+#### Consequences
+
+* Plan 20 completes the ownership model ADR-019 deferred.
+* `SparseRetriever` and `IndexingPipeline` remain orchestrators — they do not call FlagEmbedding directly.
+
+#### Alternatives Considered
+
+| Alternative | Why rejected |
+| ----------- | ------------ |
+| Single `HybridEmbeddingProvider` returning dense+sparse tuples | Collapses ADR-013 write/read contracts |
+| Sparse runtime in `retrieval/` only | Violates ADR-019 write-path indexing ownership |
+| Sparse runtime in `indexing/` only | Violates ADR-019 query-path retrieval ownership |
+| Storage-side sparse generation | Violates ADR-006 |
+
+---
+
+### ADR-082: BGE-M3 Dual Dense+Sparse Encoding in Shared Runtime
+
+**Status:** Accepted
+
+**Date:** 2026-06-22
+
+#### Context
+
+Plan 16 introduced `BgeM3FlagEmbeddingRuntime` with dense-only FlagEmbedding calls. Real hybrid retrieval requires passage and query sparse vectors from the same `BAAI/bge-m3` weights already loaded for dense paths (ADR-057).
+
+#### Decision
+
+* Extend `BgeM3FlagEmbeddingRuntime` (same class, same loaded model) with sparse inference methods.
+* **Passage sparse:** `encode(..., return_sparse=True, return_colbert_vecs=False)`.
+* **Query sparse:** `encode_queries(..., return_sparse=True, return_colbert_vecs=False)`.
+* Stable sparse contract at embeddings layer: `SparseVectorPayload = (indices, values)`; `embed_passages_sparse`, `embed_query_sparse`, optional `embed_passages_dual` for single forward pass on indexing.
+* `return_colbert_vecs` remains disabled in Plan 20.
+* Indexing and retrieval adapters depend on runtime protocol methods — not on `lexical_weights` dict shape.
+
+#### Consequences
+
+* One model load serves dense and sparse for both indexing and retrieval.
+* Plan 16 dense behavior unchanged when sparse methods are not called.
+
+#### Alternatives Considered
+
+| Alternative | Why rejected |
+| ----------- | ------------ |
+| Separate `SparseEmbeddingRuntime` with second model load | 2× memory; config drift risk |
+| Reuse `encode` for queries | Violates BGE-M3 query/passage semantics |
+
+---
+
+### ADR-083: Lexical Weight to Qdrant SparseVector Conversion Contract
+
+**Status:** Accepted
+
+**Date:** 2026-06-22
+
+#### Context
+
+FlagEmbedding returns `lexical_weights` as `dict[token_id, weight]` per text. Qdrant expects unique sorted numeric indices with aligned values.
+
+#### Decision
+
+* Implement `lexical_weights_to_sparse_payload(weights)` in `embeddings/sparse_conversion.py`.
+* Conversion rules: parse keys as `int`; include only weight > 0 and finite; sum duplicate indices; sort ascending; align values.
+* **Query path:** wrap in `SparseQueryVector`; empty result raises `EmbeddingRuntimeError`.
+* **Write path:** wrap in `storage.models.SparseVector`; empty result raises at runtime.
+* No IDF modifier in application layer; no schema change.
+
+#### Consequences
+
+* Identical conversion logic for indexing and retrieval eliminates index misalignment.
+* Token IDs stored as-is in Qdrant indices; reindex required if model/tokenizer changes.
+
+#### Alternatives Considered
+
+| Alternative | Why rejected |
+| ----------- | ------------ |
+| Convert in indexing and retrieval separately | Duplication risk; alignment bugs |
+| Map tokens to hash buckets | Breaks BGE-M3 lexical matching |
+
+---
+
+### ADR-084: Sparse Embedding Migration Requires Full Reindex
+
+**Status:** Accepted
+
+**Date:** 2026-06-22
+
+#### Context
+
+Collections indexed with real dense vectors (Plan 16) may still carry ADR-010 sparse placeholders. Real sparse query vectors will not align with placeholder-indexed passages.
+
+#### Decision
+
+* Enabling real sparse embeddings requires per-chunk BGE-M3 sparse vectors in Qdrant.
+* Switching sparse generation placeholder → real (or real → stub) requires full collection rebuild and reindex with caller approval — same workflow as ADR-058.
+* Recovery path: `rag demo load --rebuild --approve`.
+* No in-place sparse vector migration in Plan 20.
+* When `RAG_EMBEDDING_MODE=real`, bootstrap enables real dense **and** real sparse together from one shared runtime.
+* `rag demo info` pipeline label indicates sparse mode (`sparse` vs `sparse (bge-m3)`).
+
+#### Consequences
+
+* Operators who completed Plan 16 reindex must reindex again after Plan 20 for sparse/fusion lift.
+* Sparse Hit@K = 0 and fusion ≈ dense until reindex — expected, not a framework bug.
+
+#### Alternatives Considered
+
+| Alternative | Why rejected |
+| ----------- | ------------ |
+| Lazy sparse backfill on read | Violates human-in-the-loop |
+| Automatic rebuild on mode switch | Violates ADR-054 explicit approval |
+
+---
+
+### ADR-085: Bootstrap Sparse Provider Selection Follows Embedding Mode
+
+**Status:** Accepted
+
+**Date:** 2026-06-22
+
+#### Context
+
+Plan 16 introduced `RAG_EMBEDDING_MODE=stub|real` for dense providers. Bootstrap must become the single composition point for sparse provider selection.
+
+#### Decision
+
+* **No separate `RAG_SPARSE_MODE`** — sparse follows `BootstrapSettings.embedding_mode`:
+  * `stub` → `StubSparseEmbeddingProvider` + `StubSparseQueryEmbeddingProvider`;
+  * `real` → `BgeM3SparseEmbeddingProvider` + `BgeM3SparseQueryEmbeddingProvider` using the same shared runtime as dense adapters.
+* `build_demo_environment()` passes sparse providers into `IndexingPipeline` and `build_retrieval_stack`.
+* `build_retrieval_stack(..., sparse_query_embedding_provider=...)` — no hardcoded stub.
+* Pipeline label reflects sparse mode: `sparse (bge-m3)` in real mode.
+* Default remains stub for CI (ADR-060 pattern extended to sparse).
+
+#### Consequences
+
+* One environment variable controls real vs stub for both embedding legs.
+* Plan 18 `rag evaluate` automatically picks up sparse provider from bootstrap without CLI changes.
+
+#### Alternatives Considered
+
+| Alternative | Why rejected |
+| ----------- | ------------ |
+| Independent `RAG_SPARSE_MODE` | Allows misaligned dense-real + sparse-stub states |
+| Sparse wiring only in CLI | Violates ADR-051 composition root |
+
+---
+
+### ADR-086: Stub Sparse Providers Remain Default for CI
+
+**Status:** Accepted
+
+**Date:** 2026-06-22
+
+#### Context
+
+Real BGE-M3 sparse inference shares Plan 16 costs (torch, model download). CI and unit tests must remain fast.
+
+#### Decision
+
+* `StubSparseEmbeddingProvider` and `StubSparseQueryEmbeddingProvider` remain in the codebase.
+* Default `build_demo_environment()` uses stub sparse providers unless `RAG_EMBEDDING_MODE=real`.
+* Default `pytest` invocation passes without sparse model inference.
+* Real sparse smoke tests opt-in via `@pytest.mark.embedding_model` and `RAG_EMBEDDING_ENABLE_REAL_TESTS=true`.
+* `sparse_placeholder_vector()` may remain exported for legacy unit tests but is not used by `IndexingPipeline` after Plan 20.
+
+#### Consequences
+
+* CI validation unchanged in weight.
+* Meaningful sparse/fusion benchmark numbers require `RAG_EMBEDDING_MODE=real` + approved reindex.
+
+#### Alternatives Considered
+
+| Alternative | Why rejected |
+| ----------- | ------------ |
+| Remove stub sparse providers | Loses fast deterministic tests |
+| Real sparse as default | Breaks CI; forces model download |

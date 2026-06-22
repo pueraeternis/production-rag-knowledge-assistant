@@ -144,7 +144,7 @@ Top Context
 | `protocol.py` | `Retriever` composition protocol |
 | `fusion.py` | `FusionRetriever`, `reciprocal_rank_fusion` (RRF) |
 | `rerank.py` | `RerankRetriever`, `Reranker`, `StubReranker`, `BgeReranker` |
-| `embeddings.py` | `QueryEmbeddingProvider`, `StubQueryEmbeddingProvider`, `BgeM3QueryEmbeddingProvider`, `SparseQueryEmbeddingProvider`, `StubSparseQueryEmbeddingProvider` |
+| `embeddings.py` | `QueryEmbeddingProvider`, `StubQueryEmbeddingProvider`, `BgeM3QueryEmbeddingProvider`, `SparseQueryEmbeddingProvider`, `StubSparseQueryEmbeddingProvider`, `BgeM3SparseQueryEmbeddingProvider` |
 | `exceptions.py` | Retrieval-specific error types |
 | `dense.py` | `DenseRetriever` orchestration |
 | `sparse_vectors.py` | `SparseQueryVector` (retrieval-local) |
@@ -160,7 +160,7 @@ Top Context
 
 **Public contract:** callers submit `SearchQuery` text and receive `RetrievalResult`. Vectors are internal to retrieval and must not leak to MCP, agent, or other higher layers.
 
-**Sparse placeholder constraint (ADR-020):** indexing still stores a constant sparse placeholder per ADR-010 until a future sparse indexing plan replaces it. Meaningful sparse retrieval against production-indexed corpora requires that future plan and a full reindex with caller approval. Plan 07 delivers the read path only.
+**Sparse placeholder constraint (ADR-020):** superseded for production indexing by Plan 20 (ADR-081). `IndexingPipeline` now generates per-chunk sparse vectors via `SparseEmbeddingProvider`. Collections indexed before Plan 20 still require full reindex with approval (ADR-084).
 
 **BGE reranker runtime (ADR-061 through ADR-066):** `BgeReranker` lives in `knowledge_assistant.retrieval` and implements the existing `Reranker.rerank(query, candidates)` protocol. It loads the FlagEmbedding model lazily on the first non-empty rerank call, returns `()` for empty candidates without loading, reuses one backend per `BgeReranker` instance, and keeps CPU/GPU/runtime settings in `BgeRerankerSettings`. Default demo and CI wiring still use `StubReranker`; real mode is opt-in via bootstrap settings/environment.
 
@@ -266,41 +266,45 @@ Storage receives pre-computed vectors on write and pre-computed query vectors on
 
 ## Embeddings Layer
 
-Plan 16 delivers the shared BGE-M3 dense embedding runtime in `knowledge_assistant.embeddings`. Indexing and retrieval keep layer-local provider protocols per ADR-013; bootstrap owns shared runtime construction per ADR-057.
+Plan 16 delivers the shared BGE-M3 dense embedding runtime in `knowledge_assistant.embeddings`. Plan 20 extends the same runtime with sparse inference. Indexing and retrieval keep layer-local provider protocols per ADR-013; bootstrap owns shared runtime construction per ADR-057.
 
 ```text
 BootstrapSettings (embedding_mode=stub|real)
         ↓
 create_shared_dense_embedding_runtime(...)
         ↓
-┌──────────────────────────┬────────────────────────────┐
-│ BgeM3EmbeddingProvider   │ BgeM3QueryEmbeddingProvider │
-│ → IndexingPipeline       │ → DenseRetriever            │
-└──────────────────────────┴────────────────────────────┘
+┌────────────────────────────┬─────────────────────────────────┐
+│ BgeM3EmbeddingProvider     │ BgeM3QueryEmbeddingProvider      │
+│ BgeM3SparseEmbeddingProvider│ BgeM3SparseQueryEmbeddingProvider│
+│ → IndexingPipeline         │ → DenseRetriever / SparseRetriever │
+└────────────────────────────┴─────────────────────────────────┘
 ```
 
 | Module | Responsibility |
 | ------ | -------------- |
 | `config.py` | `EmbeddingRuntimeSettings` and `RAG_EMBEDDING_*` env loading |
-| `runtime.py` | `DenseEmbeddingRuntime` protocol and `BgeM3FlagEmbeddingRuntime` |
+| `runtime.py` | `DenseEmbeddingRuntime` protocol and `BgeM3FlagEmbeddingRuntime` (dense + sparse) |
+| `sparse_conversion.py` | `lexical_weights_to_sparse_payload`, `SparseVectorPayload` |
 | `factory.py` | `create_dense_embedding_runtime`, shared runtime cache |
 | `exceptions.py` | `EmbeddingRuntimeError`, dimension and device errors |
 
 **Stable contract:** indexing and retrieval depend on `DenseEmbeddingRuntime` only — not on FlagEmbedding or `torch`.
 
-**Inference paths:** `embed_passages` batches document chunks; `embed_query` processes one query. Distinct BGE-M3 encoding modes apply in the default FlagEmbedding implementation.
+**Inference paths:** `embed_passages` / `embed_passages_sparse` / `embed_passages_dual` batch document chunks; `embed_query` / `embed_query_sparse` process one query. Distinct BGE-M3 encoding modes apply (`encode` vs `encode_queries`).
 
-**Normalization and dimensions (ADR-059):** runtime L2-normalizes outputs when configured; output length must equal configured `dense_vector_size` (default `1024`).
+**Sparse conversion (ADR-083):** FlagEmbedding `lexical_weights` dicts convert to sorted unique `(indices, values)` tuples before mapping to `SparseVector` or `SparseQueryVector`.
+
+**Normalization and dimensions (ADR-059):** runtime L2-normalizes dense outputs when configured; sparse weights are unnormalized ReLU lexical weights.
 
 **Device validation:** configured `cuda` or `mps` fails fast at runtime initialization when unavailable — no silent CPU fallback.
 
 **Concurrency:** thread safety is not guaranteed; one runtime instance per bootstrap assembly is intended for single-process demo usage.
 
-**Migration (ADR-058):** switching stub ↔ real dense embeddings requires full collection rebuild and reindex with caller approval.
+**Migration (ADR-058, ADR-084):** switching stub ↔ real embeddings (dense and sparse together) requires full collection rebuild and reindex with caller approval.
 
-**Default mode (ADR-060):** stub providers remain the default for CI and fast tests; real mode is opt-in via `RAG_EMBEDDING_MODE=real`.
+**Default mode (ADR-060, ADR-086):** stub providers remain the default for CI and fast tests; real mode is opt-in via `RAG_EMBEDDING_MODE=real`.
 
-See [ADR-055](DECISIONS.md#adr-055-dedicated-embeddings-package-for-shared-bge-m3-runtime) through [ADR-060](DECISIONS.md#adr-060-stub-providers-remain-default-for-ci-and-fast-tests).
+See [ADR-055](DECISIONS.md#adr-055-dedicated-embeddings-package-for-shared-bge-m3-runtime) through [ADR-060](DECISIONS.md#adr-060-stub-providers-remain-default-for-ci-and-fast-tests) and [ADR-081](DECISIONS.md#adr-081-real-sparse-embedding-ownership) through [ADR-086](DECISIONS.md#adr-086-stub-sparse-providers-remain-default-for-ci).
 
 ---
 
@@ -319,7 +323,8 @@ LlamaIndex SentenceSplitter (chunking)
     ↓
 core domain models
     ↓
-EmbeddingProvider (write path)
+EmbeddingProvider (dense write path)
+SparseEmbeddingProvider (sparse write path)
     ↓
 VectorStore.upsert_chunks
 
@@ -331,7 +336,7 @@ Path.read_text → raw source text → title, section_title, LineRange
 | ------ | -------------- |
 | `config.py` | `IndexingSettings` |
 | `documents.py` | Local file discovery (`.md`, `.txt`) |
-| `embeddings.py` | `EmbeddingProvider`, `StubEmbeddingProvider`, `BgeM3EmbeddingProvider`, sparse placeholder |
+| `embeddings.py` | `EmbeddingProvider`, `StubEmbeddingProvider`, `BgeM3EmbeddingProvider`, `SparseEmbeddingProvider`, `StubSparseEmbeddingProvider`, `BgeM3SparseEmbeddingProvider` |
 | `exceptions.py` | Indexing-specific error types |
 | `ids.py` | UUID5 `DocumentId` and `ChunkId` generation |
 | `llamaindex_adapter.py` | LlamaIndex load/chunk + raw attribution mirror → domain models (sole LlamaIndex import site) |
@@ -355,7 +360,7 @@ Path.read_text → raw source text → title, section_title, LineRange
 
 **Human approval (ADR-012):** `preview_indexing` estimates impact without embeddings or storage writes; callers must obtain approval before `index_documents(..., rebuild=True)`.
 
-**Sparse vectors (ADR-010, ADR-020):** indexing attaches a constant sparse placeholder until a future sparse indexing plan provides per-chunk BGE-M3 sparse vectors. A full reindex with caller approval will be required when that migration occurs.
+**Sparse vectors (ADR-010, ADR-020, ADR-081):** indexing generates per-chunk sparse vectors via `SparseEmbeddingProvider`. Stub providers are default for CI; real BGE-M3 sparse vectors require `RAG_EMBEDDING_MODE=real` and full reindex with approval (ADR-084).
 
 ---
 
@@ -560,7 +565,7 @@ build_retriever_for_strategy(env, strategy)   ← Plan 18 (dense/sparse/fusion/r
 | `retrievers.py` | `RetrievalStrategy`, `RetrievalStack`, `build_retrieval_stack()`, `build_retriever_for_strategy()` |
 | `chat.py` | `ChatSession`, `build_chat_session()`, `initial_agent_state()`, `execute_turn()`, `execute_turn_streaming()` (Plan 19) |
 
-**Canonical demo retrieval pipeline (ADR-053, ADR-065):** `RerankRetriever(FusionRetriever(DenseRetriever, SparseRetriever), reranker)` where dense providers are stub or real BGE-M3 (Plan 16) and `reranker` is `StubReranker()` by default or `BgeReranker` when `RAG_RERANKER_MODE=real`. `rag demo info` reports embedding and reranker modes in the pipeline label without triggering model loading.
+**Canonical demo retrieval pipeline (ADR-053, ADR-065, ADR-085):** `RerankRetriever(FusionRetriever(DenseRetriever, SparseRetriever), reranker)` where dense and sparse providers are stub or real BGE-M3 (Plans 16 and 20) and `reranker` is `StubReranker()` by default or `BgeReranker` when `RAG_RERANKER_MODE=real`. `rag demo info` reports embedding and reranker modes in the pipeline label without triggering model loading.
 
 **Dense embedding migration (ADR-058):** switching `RAG_EMBEDDING_MODE` between stub and real requires `rag demo load --rebuild --approve`.
 

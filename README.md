@@ -86,9 +86,9 @@ Optional environment variable: `RAG_CORPUS_ROOT` (default `knowledge`) overrides
 
 See [Plan 15](docs/plans/completed/15-demo-bootstrap-workflow.md) and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
-## Real Dense Embeddings (BGE-M3)
+## Real Dense and Sparse Embeddings (BGE-M3)
 
-Plan 16 adds opt-in real `BAAI/bge-m3` dense embeddings for indexing and retrieval. Stub providers remain the default for CI and fast local development.
+Plan 16 adds opt-in real `BAAI/bge-m3` dense embeddings for indexing and retrieval. Plan 20 extends the same runtime with real BGE-M3 sparse (lexical) vectors on both write and query paths. Stub providers remain the default for CI and fast local development.
 
 ```bash
 export RAG_EMBEDDING_MODE=real
@@ -98,17 +98,17 @@ uv run rag demo info
 
 The first real embedding run may download `BAAI/bge-m3` from Hugging Face. When `RAG_EMBEDDING_DEVICE=cuda` is set but CUDA is unavailable, initialization fails fast without falling back to CPU.
 
-**Reindex after switching stub → real** (vectors are incompatible):
+**Reindex after switching stub → real** (dense and sparse vectors are incompatible with prior placeholder/stub indexes):
 
 ```bash
 uv run rag demo load --rebuild --approve
 ```
 
-Useful settings: `RAG_EMBEDDING_MODEL`, `RAG_EMBEDDING_BATCH_SIZE`, `RAG_EMBEDDING_MAX_LENGTH`, `RAG_EMBEDDING_NORMALIZE`, and `RAG_EMBEDDING_ENABLE_REAL_TESTS=true` for the optional local real-model smoke test — see `.env.example`.
+Useful settings: `RAG_EMBEDDING_MODEL`, `RAG_EMBEDDING_BATCH_SIZE`, `RAG_EMBEDDING_MAX_LENGTH`, `RAG_EMBEDDING_NORMALIZE`, and `RAG_EMBEDDING_ENABLE_REAL_TESTS=true` for optional local real-model smoke tests — see `.env.example`.
 
-**Evaluation comparison:** index with stub vs real bootstrap settings, run `rag evaluate run` or `rag evaluate compare` — see [Retrieval Evaluation](#retrieval-evaluation).
+**Evaluation comparison:** after reindex with `RAG_EMBEDDING_MODE=real`, run `rag evaluate compare` — expect sparse Hit@K > 0 and fusion metrics to diverge from dense-only ordering on lexical-friendly queries. Stub-mode evaluate runs remain useful for wiring checks only (ADR-070).
 
-See [Plan 16](docs/plans/completed/16-real-dense-embeddings-integration.md).
+See [Plan 16](docs/plans/completed/16-real-dense-embeddings-integration.md) and [Plan 20](docs/plans/completed/20-real-sparse-embeddings-integration.md).
 
 ## Real Reranker
 
@@ -154,11 +154,13 @@ Optional flags: `--dataset PATH` (default `data/evaluation/retrieval_benchmark_v
 **Stub vs real benchmarks (ADR-070):** evaluate inherits `RAG_EMBEDDING_MODE` and `RAG_RERANKER_MODE` from bootstrap. Stub modes run successfully and are useful for wiring checks, but absolute metric values are not authoritative for lecture claims about BGE-M3 or the BGE reranker. For meaningful benchmark numbers:
 
 ```bash
-export RAG_EMBEDDING_MODE=real
+export RAG_EMBEDDING_MODE=real   # enables real dense + sparse (Plan 20)
 export RAG_RERANKER_MODE=real   # optional; affects rerank strategy only
 uv run rag demo load --rebuild --approve
 uv run rag evaluate compare
 ```
+
+After Plan 20, sparse and fusion strategy columns require a corpus reindexed with real sparse vectors. Collections indexed with Plan 16 dense-only sparse placeholders will show sparse Hit@K ≈ 0 until reindex.
 
 Evaluate fails with exit code `3` when the collection is missing or empty — run `rag demo load` first.
 
@@ -172,6 +174,12 @@ Install dependencies and create the local virtual environment:
 
 ```bash
 uv sync
+```
+
+On Linux and Windows, `torch` resolves from the official PyTorch CUDA 12.6 (`cu126`) index so GPU inference works with common NVIDIA driver versions (including RTX 40-series). macOS continues to use the default PyPI CPU wheel. After `uv sync`, verify GPU availability:
+
+```bash
+uv run python -c "import torch; print(torch.__version__, torch.cuda.is_available())"
 ```
 
 Run all development tools through `uv run`. Do not invoke `pytest`, `ruff`, or `basedpyright` directly.

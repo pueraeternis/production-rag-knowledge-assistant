@@ -16,6 +16,7 @@ from knowledge_assistant.retrieval import (
     FusionRetriever,
     RerankRetriever,
     SparseRetriever,
+    StubSparseQueryEmbeddingProvider,
 )
 from knowledge_assistant.storage.config import StorageSettings
 from knowledge_assistant.storage.qdrant_store import create_qdrant_vector_store
@@ -67,4 +68,8 @@ def test_strategy_retrievers_share_vector_store() -> None:
 
     assert stack.dense_retriever._vector_store is store  # pyright: ignore[reportPrivateUsage]
     assert stack.sparse_retriever._vector_store is store  # pyright: ignore[reportPrivateUsage]
+    assert isinstance(
+        stack.sparse_retriever._embedding_provider,  # pyright: ignore[reportPrivateUsage]
+        StubSparseQueryEmbeddingProvider,
+    )
     assert environment.retriever is stack.rerank_retriever

@@ -1,8 +1,13 @@
 """Unit tests for sparse query embedding providers."""
 
+from unittest.mock import MagicMock
+
 import pytest
 
-from knowledge_assistant.retrieval.embeddings import StubSparseQueryEmbeddingProvider
+from knowledge_assistant.retrieval.embeddings import (
+    BgeM3SparseQueryEmbeddingProvider,
+    StubSparseQueryEmbeddingProvider,
+)
 from knowledge_assistant.retrieval.sparse_vectors import SparseQueryVector
 
 
@@ -45,3 +50,15 @@ class TestStubSparseQueryEmbeddingProvider:
 
         norm = sum(value * value for value in vector.values) ** 0.5
         assert norm == pytest.approx(1.0)
+
+
+class TestBgeM3SparseQueryEmbeddingProvider:
+    def test_delegates_to_runtime_and_returns_sparse_query_vector(self) -> None:
+        runtime = MagicMock()
+        runtime.embed_query_sparse.return_value = ((10, 20), (0.5, 0.25))
+        provider = BgeM3SparseQueryEmbeddingProvider(runtime=runtime)
+
+        vector = provider.embed_query("hybrid search")
+
+        runtime.embed_query_sparse.assert_called_once_with("hybrid search")
+        assert vector == SparseQueryVector(indices=(10, 20), values=(0.5, 0.25))
