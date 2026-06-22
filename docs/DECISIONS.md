@@ -1829,6 +1829,7 @@ RerankRetriever(
 | Silent rebuild on `demo load` | Violates human-in-the-loop |
 | Reset without approval | Destructive operation requires explicit consent |
 
+
 ---
 
 ### ADR-055: Dedicated Embeddings Package for Shared BGE-M3 Runtime
@@ -1972,3 +1973,157 @@ Real BGE-M3 introduces `torch`, large downloads, and variable runtime. CI must r
 
 * CI validation stays lightweight.
 * Operators opt into real embeddings deliberately.
+
+---
+
+### ADR-061: Real Reranker Stays Behind the Existing Reranker Protocol
+
+**Status:** Accepted
+
+**Date:** 2026-06-22
+
+#### Context
+
+Plan 09 established `RerankRetriever` and the `Reranker` protocol. ADR-027 deferred real `BAAI/bge-reranker-v2-m3` integration while requiring future implementations to preserve the same contract.
+
+#### Decision
+
+* Implement `BgeReranker` in `knowledge_assistant.retrieval`.
+* `BgeReranker` implements `Reranker.rerank(query, candidates) -> tuple[SearchResult, ...]`.
+* `RerankRetriever` remains dependency-injected and unchanged in its public behavior.
+* The real reranker preserves candidate count exactly.
+* The real reranker does not import MCP, agent, LLM, storage, indexing, Qdrant, or evaluation code.
+
+#### Consequences
+
+* Existing retrieval composition remains valid.
+* MCP, agent, and evaluation code continue to depend on `Retriever` only.
+* Unit tests can verify real reranker behavior with a mocked backend.
+
+---
+
+### ADR-062: Minimal Runtime for BGE Reranking
+
+**Status:** Accepted
+
+**Date:** 2026-06-22
+
+#### Context
+
+The project names `BAAI/bge-reranker-v2-m3` as the required reranker. Implementation should stay local, minimal, and aligned with BAAI-supported APIs.
+
+#### Decision
+
+* Use `FlagEmbedding` as the direct BGE reranker runtime dependency.
+* Load the runtime through a retrieval-local adapter and backend protocol so unit tests avoid model downloads.
+* Add the runtime dependency to `pyproject.toml` and `uv.lock`.
+* Do not use LangChain reranker wrappers, LlamaIndex postprocessors, ONNX, external services, or hand-rolled raw `transformers` inference in Plan 17.
+
+#### Consequences
+
+* Runtime code stays small and close to supported BGE usage.
+* First real reranker execution may download Hugging Face model weights.
+* CI remains stub/mock based unless optional real-model tests are explicitly enabled.
+
+---
+
+### ADR-063: Lazy Reranker Model Loading
+
+**Status:** Accepted
+
+**Date:** 2026-06-22
+
+#### Context
+
+Bootstrap should remain cheap in stub mode and should not download or allocate a model unless real reranking is actually used.
+
+#### Decision
+
+* `BgeReranker` stores settings at construction time and loads the model lazily on the first non-empty `rerank()` call.
+* Model lifetime is owned by the `BgeReranker` instance.
+* A `BgeReranker` instance loads at most once and reuses its backend on subsequent calls.
+* Empty candidate input returns `()` without loading.
+* Bootstrap can construct a real reranker without triggering model download.
+
+#### Consequences
+
+* `rag demo info` can report real reranker configuration without forcing model initialization.
+* Unit tests can instantiate `BgeReranker` with fake loaders.
+* The first real query pays model-load latency.
+
+---
+
+### ADR-064: Reranker Score Semantics Remain Reranker-Relevance Scores
+
+**Status:** Accepted
+
+**Date:** 2026-06-22
+
+#### Context
+
+ADR-026 states that reranked `SearchResult.score` values are reranker relevance scores and are not comparable to dense, sparse, or RRF scores. The real model introduces numeric relevance scores whose absolute calibration may vary by backend.
+
+#### Decision
+
+* `BgeReranker` replaces each candidate `SearchResult.score` with the model-produced relevance score.
+* Higher score means more relevant.
+* Scores are ordinal ranking keys, not probabilities.
+* Original dense, sparse, or RRF scores are not preserved in Plan 17.
+* Equal scores are tie-broken by `chunk_id` ascending.
+
+#### Consequences
+
+* Plan 09 score semantics remain intact.
+* Evaluation and display code should treat scores as ranking values only.
+* No core model extension is required.
+
+---
+
+### ADR-065: Stub Default with Opt-In Real Reranker
+
+**Status:** Accepted
+
+**Date:** 2026-06-22
+
+#### Context
+
+Plan 15 established a lightweight demo path using `StubReranker`. Real reranker dependencies are heavier and may require model downloads.
+
+#### Decision
+
+* Bootstrap defaults to `StubReranker`.
+* Real reranker mode is opt-in via `RAG_RERANKER_MODE=real` or equivalent `BootstrapSettings`.
+* `StubReranker` remains the default for CI, unit tests, and fallback demo mode.
+* `rag demo info` reports whether reranking is stub or real through the retrieval pipeline label.
+
+#### Consequences
+
+* Existing tests remain fast and deterministic.
+* Operators can enable the real reranker for lecture demos after dependencies and model cache are available.
+* Demo mode remains usable on CPU-only machines.
+
+---
+
+### ADR-066: Reranker Model Ownership
+
+**Status:** Accepted
+
+**Date:** 2026-06-22
+
+#### Context
+
+The real reranker introduces the first retrieval-layer cross-encoder runtime. Without explicit ownership, model loading could drift into bootstrap, MCP handlers, evaluation, agent wiring, or LLM utilities.
+
+#### Decision
+
+* Retrieval owns reranker runtime models.
+* Bootstrap selects the concrete implementation: `StubReranker` or real `BgeReranker`.
+* Storage, indexing, MCP, agent, evaluation, and LLM layers must not load reranker models.
+* Model loading stays behind the `Reranker` protocol.
+* Higher layers interact only with a composed `Retriever`, typically `RerankRetriever`.
+
+#### Consequences
+
+* Model runtime dependencies remain localized to retrieval.
+* Bootstrap remains a composition root rather than a model inference layer.
+* MCP, agent, and evaluation code stay independent from reranker runtime details.

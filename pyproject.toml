@@ -67,4 +67,5 @@ testpaths = ["tests"]
 pythonpath = ["src", "tests/unit"]
 markers = [
     "embedding_model: requires BAAI/bge-m3 download and significant runtime",
+    "real_model: tests that load local model runtimes and are skipped by default",
 ]

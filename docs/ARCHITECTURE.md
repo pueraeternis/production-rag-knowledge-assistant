@@ -45,7 +45,7 @@ All knowledge access happens through MCP tools and resources.
 
 ## Retrieval Layer
 
-The retrieval layer is deterministic and must not call LLMs. Plan 06 implements dense retrieval; Plan 07 implements sparse retrieval; Plan 08 implements rank-based fusion; Plan 09 implements reranking orchestration with a deterministic stub. Real `BAAI/bge-reranker-v2-m3` model runtime is deferred to a future plan.
+The retrieval layer is deterministic and must not call LLMs. Plan 06 implements dense retrieval; Plan 07 implements sparse retrieval; Plan 08 implements rank-based fusion; Plan 09 implements reranking orchestration with a deterministic stub. Plan 17 adds an opt-in real `BAAI/bge-reranker-v2-m3` runtime behind the same `Reranker` protocol.
 
 ### Dense retrieval path
 
@@ -140,10 +140,10 @@ Top Context
 
 | Module | Responsibility |
 | ------ | -------------- |
-| `config.py` | `DenseRetrievalSettings`, `FusionRetrievalSettings`, `RerankRetrievalSettings` |
+| `config.py` | `DenseRetrievalSettings`, `FusionRetrievalSettings`, `RerankRetrievalSettings`, `BgeRerankerSettings` |
 | `protocol.py` | `Retriever` composition protocol |
 | `fusion.py` | `FusionRetriever`, `reciprocal_rank_fusion` (RRF) |
-| `rerank.py` | `RerankRetriever`, `Reranker`, `StubReranker` |
+| `rerank.py` | `RerankRetriever`, `Reranker`, `StubReranker`, `BgeReranker` |
 | `embeddings.py` | `QueryEmbeddingProvider`, `StubQueryEmbeddingProvider`, `BgeM3QueryEmbeddingProvider`, `SparseQueryEmbeddingProvider`, `StubSparseQueryEmbeddingProvider` |
 | `exceptions.py` | Retrieval-specific error types |
 | `dense.py` | `DenseRetriever` orchestration |
@@ -152,7 +152,7 @@ Top Context
 
 **Fusion score semantics (ADR-023):** `FusionRetriever` output `SearchResult.score` values are RRF fusion scores — ordinal ranking keys, not raw dense/sparse similarity scores and not comparable to reranker scores.
 
-**Reranked score semantics (ADR-026):** `RerankRetriever` output `SearchResult.score` values are reranker relevance scores — ordinal ranking keys, not comparable to dense, sparse, or RRF scores. The Plan 09 `Reranker` contract preserves candidate count (`N` in → `N` out); only `RerankRetriever` truncates to `query.top_k`. Fusion leaf expansion (`FusionRetrievalSettings.leaf_top_k_multiplier`) and reranking candidate expansion (`RerankRetrievalSettings.candidate_top_k_multiplier`) are independent settings with no cross-layer coupling.
+**Reranked score semantics (ADR-026, ADR-064):** `RerankRetriever` output `SearchResult.score` values are reranker relevance scores — ordinal ranking keys, not comparable to dense, sparse, or RRF scores. `StubReranker` uses deterministic token overlap; `BgeReranker` replaces scores with model relevance scores from `BAAI/bge-reranker-v2-m3` or the configured BGE model. Higher is better, and equal scores are ordered by `chunk_id` ascending. The `Reranker` contract preserves candidate count (`N` in → `N` out); only `RerankRetriever` truncates to `query.top_k`. Fusion leaf expansion (`FusionRetrievalSettings.leaf_top_k_multiplier`) and reranking candidate expansion (`RerankRetrievalSettings.candidate_top_k_multiplier`) are independent settings with no cross-layer coupling.
 
 **Query embedding ownership (ADR-013, ADR-015, ADR-019):** retrieval generates query-path dense and sparse embeddings via retrieval-local providers; indexing generates write-path chunk embeddings; storage generates neither.
 
@@ -162,9 +162,9 @@ Top Context
 
 **Sparse placeholder constraint (ADR-020):** indexing still stores a constant sparse placeholder per ADR-010 until a future sparse indexing plan replaces it. Meaningful sparse retrieval against production-indexed corpora requires that future plan and a full reindex with caller approval. Plan 07 delivers the read path only.
 
-**Dense embedding runtime (ADR-055 through ADR-060):** real query-path dense vectors use `BgeM3QueryEmbeddingProvider`, which delegates to a shared `DenseEmbeddingRuntime` from `knowledge_assistant.embeddings`. Default demo and CI wiring still use `StubQueryEmbeddingProvider`; real mode is opt-in via bootstrap `embedding_mode`.
+**BGE reranker runtime (ADR-061 through ADR-066):** `BgeReranker` lives in `knowledge_assistant.retrieval` and implements the existing `Reranker.rerank(query, candidates)` protocol. It loads the FlagEmbedding model lazily on the first non-empty rerank call, returns `()` for empty candidates without loading, reuses one backend per `BgeReranker` instance, and keeps CPU/GPU/runtime settings in `BgeRerankerSettings`. Default demo and CI wiring still use `StubReranker`; real mode is opt-in via bootstrap settings/environment.
 
-**Dependency rule:** leaf retrievers depend on the `VectorStore` protocol only — not on `qdrant_client`, `StorageSettings`, or other storage modules. Fusion and reranking depend on the `Retriever` protocol (and reranking depends on the `Reranker` protocol) only. Dense embedding model runtimes live in `embeddings/`; retrieval adapters depend on the `DenseEmbeddingRuntime` protocol, not on `torch` or FlagEmbedding directly. See [ADR-014](DECISIONS.md#adr-014-dense-retrieval-boundary) through [ADR-027](DECISIONS.md#adr-027-future-bge-cross-encoder-reranker-integration) and [ADR-055](DECISIONS.md#adr-055-dedicated-embeddings-package-for-shared-bge-m3-runtime) through [ADR-060](DECISIONS.md#adr-060-stub-providers-remain-default-for-ci-and-fast-tests).
+**Dependency rule:** leaf retrievers depend on the `VectorStore` protocol only — not on `qdrant_client`, `StorageSettings`, or other storage modules. Fusion and reranking depend on the `Retriever` protocol (and reranking depends on the `Reranker` protocol) only. The real reranker may import its model runtime lazily inside retrieval, but storage, indexing, MCP, agent, evaluation, bootstrap, and LLM layers must not load reranker models. See [ADR-014](DECISIONS.md#adr-014-dense-retrieval-boundary) through [ADR-027](DECISIONS.md#adr-027-future-bge-cross-encoder-reranker-integration) and [ADR-061](DECISIONS.md#adr-061-real-reranker-stays-behind-the-existing-reranker-protocol) through [ADR-066](DECISIONS.md#adr-066-reranker-model-ownership).
 
 ---
 
@@ -192,18 +192,6 @@ llm
 indexing
   ↓
 storage
-```
-
-```text
-indexing
-  ↓
-embeddings
-```
-
-```text
-retrieval
-  ↓
-embeddings
 ```
 
 Forbidden:
@@ -278,34 +266,39 @@ Storage receives pre-computed vectors on write and pre-computed query vectors on
 
 ## Embeddings Layer
 
-Plan 16 delivers the shared dense embedding runtime in `knowledge_assistant.embeddings`. The package loads `BAAI/bge-m3` once and serves both indexing write-path and retrieval query-path adapters. Layer protocols remain in their owning packages per ADR-013 and ADR-015.
+Plan 16 delivers the shared BGE-M3 dense embedding runtime in `knowledge_assistant.embeddings`. Indexing and retrieval keep layer-local provider protocols per ADR-013; bootstrap owns shared runtime construction per ADR-057.
 
 ```text
-EmbeddingRuntimeSettings.from_env()
+BootstrapSettings (embedding_mode=stub|real)
         ↓
-create_dense_embedding_runtime(settings)
+create_shared_dense_embedding_runtime(...)
         ↓
-DenseEmbeddingRuntime (protocol)
-        ↓
-BgeM3EmbeddingProvider (indexing)  |  BgeM3QueryEmbeddingProvider (retrieval)
+┌──────────────────────────┬────────────────────────────┐
+│ BgeM3EmbeddingProvider   │ BgeM3QueryEmbeddingProvider │
+│ → IndexingPipeline       │ → DenseRetriever            │
+└──────────────────────────┴────────────────────────────┘
 ```
 
 | Module | Responsibility |
 | ------ | -------------- |
-| `config.py` | `EmbeddingRuntimeSettings` — model name, device, batch size, normalization, dimension |
-| `runtime.py` | `DenseEmbeddingRuntime` protocol, `BgeM3FlagEmbeddingRuntime` |
-| `factory.py` | `create_dense_embedding_runtime`, `create_shared_dense_embedding_runtime` |
-| `exceptions.py` | `EmbeddingRuntimeError`, `EmbeddingDimensionMismatchError`, `EmbeddingDeviceError` |
+| `config.py` | `EmbeddingRuntimeSettings` and `RAG_EMBEDDING_*` env loading |
+| `runtime.py` | `DenseEmbeddingRuntime` protocol and `BgeM3FlagEmbeddingRuntime` |
+| `factory.py` | `create_dense_embedding_runtime`, shared runtime cache |
+| `exceptions.py` | `EmbeddingRuntimeError`, dimension and device errors |
 
-**Runtime contract (ADR-056, ADR-059):** `embed_passages` batches texts using `batch_size`; `embed_query` processes one query. Outputs are L2-normalized when `normalize_embeddings=True` (default) and must match configured `dense_vector_size`. Thread safety is not guaranteed — callers use one runtime per process in demo wiring.
+**Stable contract:** indexing and retrieval depend on `DenseEmbeddingRuntime` only — not on FlagEmbedding or `torch`.
 
-**Shared runtime ownership (ADR-057):** bootstrap creates one `DenseEmbeddingRuntime` per `DemoEnvironment` in real mode and injects it into both `BgeM3EmbeddingProvider` and `BgeM3QueryEmbeddingProvider`.
+**Inference paths:** `embed_passages` batches document chunks; `embed_query` processes one query. Distinct BGE-M3 encoding modes apply in the default FlagEmbedding implementation.
 
-**Migration (ADR-058):** switching stub ↔ real dense embeddings requires full collection rebuild and reindex with caller approval (`rag demo load --rebuild --approve`).
+**Normalization and dimensions (ADR-059):** runtime L2-normalizes outputs when configured; output length must equal configured `dense_vector_size` (default `1024`).
 
-**Default mode (ADR-060):** stub providers remain the CI and default demo path; real-model tests are opt-in via `@pytest.mark.embedding_model`.
+**Device validation:** configured `cuda` or `mps` fails fast at runtime initialization when unavailable — no silent CPU fallback.
 
-**Dependency rule:** `embeddings/` may import FlagEmbedding and `torch`. It must not import `indexing`, `retrieval`, `storage`, `mcp_server`, `agent`, `llm`, `evaluation`, `cli`, or `bootstrap`.
+**Concurrency:** thread safety is not guaranteed; one runtime instance per bootstrap assembly is intended for single-process demo usage.
+
+**Migration (ADR-058):** switching stub ↔ real dense embeddings requires full collection rebuild and reindex with caller approval.
+
+**Default mode (ADR-060):** stub providers remain the default for CI and fast tests; real mode is opt-in via `RAG_EMBEDDING_MODE=real`.
 
 See [ADR-055](DECISIONS.md#adr-055-dedicated-embeddings-package-for-shared-bge-m3-runtime) through [ADR-060](DECISIONS.md#adr-060-stub-providers-remain-default-for-ci-and-fast-tests).
 
@@ -530,21 +523,26 @@ BootstrapSettings.from_env()
         ↓
 create_qdrant_vector_store(StorageSettings)
         ↓
-embedding_mode stub | real
+embedding_mode=stub → StubEmbeddingProvider + StubQueryEmbeddingProvider
+embedding_mode=real → shared BgeM3 runtime → BgeM3* providers
         ↓
-IndexingPipeline + DenseRetriever (stub or BGE-M3 adapters)
+IndexingPipeline + DenseRetriever + SparseRetriever
         ↓
-FusionRetriever + StubReranker + RerankRetriever
+FusionRetriever
+        ↓
+StubReranker or BgeReranker + RerankRetriever
         ↓
 DemoEnvironment
 ```
 
 | Module | Responsibility |
 | ------ | -------------- |
-| `config.py` | `BootstrapSettings` — corpus root, Qdrant URL, collection name, vector dimensions, `embedding_mode`, `EmbeddingRuntimeSettings` |
-| `environment.py` | `DemoEnvironment`, `build_demo_environment()`, corpus/collection status helpers |
+| `config.py` | `BootstrapSettings` — corpus root, Qdrant URL, collection name, vector dimensions, `embedding_mode`, reranker mode/settings |
+| `environment.py` | `DemoEnvironment`, `build_demo_environment()`, corpus/collection status helpers, pipeline label |
 
-**Canonical demo retrieval pipeline (ADR-053, ADR-057):** `RerankRetriever(FusionRetriever(DenseRetriever, SparseRetriever), StubReranker())` with stub or real dense embedding providers (`embedding_mode`) and stub sparse/reranker providers until Plan 17 introduces a real reranker. `DemoEnvironment.pipeline_label` and `rag demo info` report the active embedding mode.
+**Canonical demo retrieval pipeline (ADR-053, ADR-065):** `RerankRetriever(FusionRetriever(DenseRetriever, SparseRetriever), reranker)` where dense providers are stub or real BGE-M3 (Plan 16) and `reranker` is `StubReranker()` by default or `BgeReranker` when `RAG_RERANKER_MODE=real`. `rag demo info` reports embedding and reranker modes in the pipeline label without triggering model loading.
+
+**Dense embedding migration (ADR-058):** switching `RAG_EMBEDDING_MODE` between stub and real requires `rag demo load --rebuild --approve`.
 
 **`VectorStore.count_points()` (Plan 15):** read-only cardinality via Qdrant collection metadata (`points_count`); returns `0` when the collection does not exist. Primary consumer is `rag demo info`.
 
@@ -552,11 +550,11 @@ DemoEnvironment
 
 **`BootstrapSettings.dense_vector_size`:** read-only view of `storage_settings.dense_vector_size`; indexing and retrieval settings derive from this single source of truth.
 
-**Dependency rule:** bootstrap may import `storage`, `indexing`, the public `retrieval` package API, and `core`. It must not import `cli`, `agent`, `mcp_server`, `llm`, `evaluation`, `qdrant_client`, LangGraph, or MCP SDK. Retrieval orchestrators must be imported from `knowledge_assistant.retrieval`, not internal retrieval submodules.
+**Dependency rule:** bootstrap may import `storage`, `indexing`, `embeddings`, the public `retrieval` package API, and `core`. It must not import `cli`, `agent`, `mcp_server`, `llm`, `evaluation`, `qdrant_client`, LangGraph, MCP SDK, `torch`, or FlagEmbedding directly. Retrieval orchestrators must be imported from `knowledge_assistant.retrieval`, not internal retrieval submodules.
 
 **Consumers:** `cli` (demo commands), tests, and future `rag evaluate` / `rag chat` wiring. Bootstrap complements but does not replace `agent/wiring.py` MCP adapters.
 
-See [ADR-051](DECISIONS.md#adr-051-demo-bootstrap-composition-root) through [ADR-054](DECISIONS.md#adr-054-demo-commands-require-explicit-approval-for-destructive-operations) and [ADR-057](DECISIONS.md#adr-057-bootstrap-owned-shared-embedding-runtime).
+See [ADR-051](DECISIONS.md#adr-051-demo-bootstrap-composition-root) through [ADR-060](DECISIONS.md#adr-060-stub-providers-remain-default-for-ci-and-fast-tests).
 
 ---
 

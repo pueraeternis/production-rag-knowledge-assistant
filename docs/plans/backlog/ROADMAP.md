@@ -336,7 +336,7 @@ Replace stub embedding providers with production models.
 
 Plans:
 
-* Plan 16 — Real Dense Embeddings Integration *(completed — [16-real-dense-embeddings-integration.md](../completed/16-real-dense-embeddings-integration.md))*
+* Plan 16 — Real Dense Embeddings Integration *(active: [16-real-dense-embeddings-integration.md](../active/16-real-dense-embeddings-integration.md))*
 
 Scope:
 
@@ -358,7 +358,7 @@ Replace stub reranker with production cross-encoder.
 
 Plans:
 
-* Plan 17 — Real Reranker Integration *(backlog — not yet authored)*
+* Plan 17 — Real Reranker Integration *(completed: [17-real-reranker.md](../completed/17-real-reranker.md))*
 
 Scope:
 

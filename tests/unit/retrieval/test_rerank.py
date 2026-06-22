@@ -6,8 +6,15 @@ from knowledge_assistant.core.chunk import Chunk, ChunkMetadata
 from knowledge_assistant.core.identifiers import ChunkId, DocumentId
 from knowledge_assistant.core.retrieval import SearchQuery, SearchResult
 from knowledge_assistant.core.source import LineRange, SourceReference
-from knowledge_assistant.retrieval.config import RerankRetrievalSettings
-from knowledge_assistant.retrieval.rerank import StubReranker, stub_rerank_score
+from knowledge_assistant.retrieval.config import (
+    BgeRerankerSettings,
+    RerankRetrievalSettings,
+)
+from knowledge_assistant.retrieval.rerank import (
+    BgeReranker,
+    StubReranker,
+    stub_rerank_score,
+)
 
 
 def _make_source() -> SourceReference:
@@ -212,3 +219,162 @@ class TestStubReranker:
         ) == pytest.approx(
             stub_rerank_score("python retrieval", "python retrieval"),
         )
+
+
+class FakeBgeBackend:
+    def __init__(self, scores: list[float]) -> None:
+        self._scores = scores
+        self.calls: list[list[tuple[str, str]]] = []
+        self.batch_sizes: list[int] = []
+        self.max_lengths: list[int] = []
+
+    def compute_scores(
+        self,
+        pairs: list[tuple[str, str]],
+        *,
+        batch_size: int,
+        max_length: int,
+    ) -> list[float]:
+        self.calls.append(pairs)
+        self.batch_sizes.append(batch_size)
+        self.max_lengths.append(max_length)
+        return self._scores
+
+
+class CountingLoader:
+    def __init__(self, backend: FakeBgeBackend) -> None:
+        self.backend = backend
+        self.call_count = 0
+        self.settings_seen: list[BgeRerankerSettings] = []
+
+    def __call__(self, settings: BgeRerankerSettings) -> FakeBgeBackend:
+        self.call_count += 1
+        self.settings_seen.append(settings)
+        return self.backend
+
+
+class TestBgeReranker:
+    def test_empty_candidates_returns_empty_without_loading_model(self) -> None:
+        backend = FakeBgeBackend(scores=[])
+        loader = CountingLoader(backend)
+        reranker = BgeReranker(
+            settings=BgeRerankerSettings(),
+            model_loader=loader,
+        )
+
+        result = reranker.rerank(SearchQuery(text="anything", top_k=3), ())
+
+        assert result == ()
+        assert loader.call_count == 0
+
+    def test_model_loads_lazily_and_is_reused(self) -> None:
+        backend = FakeBgeBackend(scores=[0.7])
+        loader = CountingLoader(backend)
+        settings = BgeRerankerSettings(batch_size=4, max_length=128)
+        reranker = BgeReranker(settings=settings, model_loader=loader)
+        candidates = (_make_result("chunk-a", 0.1, text="alpha"),)
+
+        first = reranker.rerank(SearchQuery(text="query", top_k=1), candidates)
+        second = reranker.rerank(SearchQuery(text="query", top_k=1), candidates)
+
+        assert first == second
+        assert loader.call_count == 1
+        assert loader.settings_seen == [settings]
+        assert backend.batch_sizes == [4, 4]
+        assert backend.max_lengths == [128, 128]
+
+    def test_passes_one_query_chunk_pair_per_candidate(self) -> None:
+        backend = FakeBgeBackend(scores=[0.1, 0.2])
+        loader = CountingLoader(backend)
+        reranker = BgeReranker(
+            settings=BgeRerankerSettings(),
+            model_loader=loader,
+        )
+        query = SearchQuery(text="policy question", top_k=2)
+        candidates = (
+            _make_result("chunk-a", 0.9, text="first text"),
+            _make_result("chunk-b", 0.8, text="second text"),
+        )
+
+        reranker.rerank(query, candidates)
+
+        assert backend.calls == [
+            [("policy question", "first text"), ("policy question", "second text")],
+        ]
+
+    def test_backend_score_count_mismatch_raises_value_error(self) -> None:
+        backend = FakeBgeBackend(scores=[0.5])
+        loader = CountingLoader(backend)
+        reranker = BgeReranker(
+            settings=BgeRerankerSettings(),
+            model_loader=loader,
+        )
+        candidates = (
+            _make_result("chunk-a", 0.9, text="first"),
+            _make_result("chunk-b", 0.8, text="second"),
+        )
+
+        with pytest.raises(ValueError, match="returned 1 scores for 2 candidates"):
+            reranker.rerank(SearchQuery(text="query", top_k=2), candidates)
+
+    def test_preserves_candidate_count_chunk_and_source_while_replacing_scores(
+        self,
+    ) -> None:
+        backend = FakeBgeBackend(scores=[3.0, 1.0])
+        loader = CountingLoader(backend)
+        reranker = BgeReranker(
+            settings=BgeRerankerSettings(),
+            model_loader=loader,
+        )
+        candidates = (
+            _make_result("chunk-a", 0.9, text="first"),
+            _make_result("chunk-b", 0.8, text="second"),
+        )
+
+        reranked = reranker.rerank(SearchQuery(text="query", top_k=2), candidates)
+
+        assert len(reranked) == len(candidates)
+        assert reranked[0].chunk == candidates[0].chunk
+        assert reranked[0].source == candidates[0].source
+        assert reranked[0].score == 3.0
+        assert reranked[1].chunk == candidates[1].chunk
+        assert reranked[1].source == candidates[1].source
+        assert reranked[1].score == 1.0
+
+    def test_orders_by_score_descending_then_chunk_id_ascending(self) -> None:
+        backend = FakeBgeBackend(scores=[1.0, 2.0, 2.0])
+        loader = CountingLoader(backend)
+        reranker = BgeReranker(
+            settings=BgeRerankerSettings(),
+            model_loader=loader,
+        )
+        candidates = (
+            _make_result("chunk-c", 0.9, text="third"),
+            _make_result("chunk-b", 0.8, text="second"),
+            _make_result("chunk-a", 0.7, text="first"),
+        )
+
+        reranked = reranker.rerank(SearchQuery(text="query", top_k=3), candidates)
+
+        assert [result.chunk.chunk_id for result in reranked] == [
+            ChunkId("chunk-a"),
+            ChunkId("chunk-b"),
+            ChunkId("chunk-c"),
+        ]
+
+    def test_repeated_calls_with_same_backend_scores_are_deterministic(self) -> None:
+        backend = FakeBgeBackend(scores=[0.4, 0.9])
+        loader = CountingLoader(backend)
+        reranker = BgeReranker(
+            settings=BgeRerankerSettings(),
+            model_loader=loader,
+        )
+        candidates = (
+            _make_result("chunk-a", 0.1, text="alpha"),
+            _make_result("chunk-b", 0.2, text="beta"),
+        )
+
+        first = reranker.rerank(SearchQuery(text="query", top_k=2), candidates)
+        second = reranker.rerank(SearchQuery(text="query", top_k=2), candidates)
+
+        assert first == second

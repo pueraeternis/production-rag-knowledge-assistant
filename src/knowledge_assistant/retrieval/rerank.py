@@ -1,17 +1,113 @@
 """Reranking orchestration for retrieved search candidates."""
 
 import re
-from typing import Protocol
+from collections.abc import Callable
+from importlib import import_module
+from typing import Protocol, cast
 
 from knowledge_assistant.core.retrieval import (
     RetrievalResult,
     SearchQuery,
     SearchResult,
 )
-from knowledge_assistant.retrieval.config import RerankRetrievalSettings
+from knowledge_assistant.retrieval.config import (
+    BgeRerankerSettings,
+    RerankRetrievalSettings,
+)
 from knowledge_assistant.retrieval.protocol import Retriever
 
 _TOKEN_PATTERN = re.compile(r"\w+")
+
+
+class BgeRerankerBackend(Protocol):
+    """Minimal backend contract for BGE pair scoring."""
+
+    def compute_scores(
+        self,
+        pairs: list[tuple[str, str]],
+        *,
+        batch_size: int,
+        max_length: int,
+    ) -> list[float]:
+        """Return one relevance score per query/document pair."""
+        ...
+
+
+BgeRerankerModelLoader = Callable[[BgeRerankerSettings], BgeRerankerBackend]
+
+
+class _FlagRerankerRuntime(Protocol):
+    def compute_score(
+        self,
+        pairs: list[list[str]],
+        *,
+        batch_size: int,
+        max_length: int,
+    ) -> object: ...
+
+
+class _FlagRerankerFactory(Protocol):
+    def __call__(
+        self,
+        model_name_or_path: str,
+        *,
+        use_fp16: bool,
+        devices: str | None = None,
+    ) -> _FlagRerankerRuntime: ...
+
+
+class _FlagEmbeddingRerankerBackend:
+    """Adapter around FlagEmbedding's BGE reranker API."""
+
+    def __init__(self, runtime: _FlagRerankerRuntime) -> None:
+        self._runtime = runtime
+
+    def compute_scores(
+        self,
+        pairs: list[tuple[str, str]],
+        *,
+        batch_size: int,
+        max_length: int,
+    ) -> list[float]:
+        raw_pairs = [[query_text, chunk_text] for query_text, chunk_text in pairs]
+        raw_scores = self._runtime.compute_score(
+            raw_pairs,
+            batch_size=batch_size,
+            max_length=max_length,
+        )
+        return _coerce_scores(raw_scores)
+
+
+def load_flag_embedding_reranker_backend(
+    settings: BgeRerankerSettings,
+) -> BgeRerankerBackend:
+    """Load the FlagEmbedding BGE reranker backend lazily."""
+    module = import_module("FlagEmbedding")
+    factory = cast("_FlagRerankerFactory", module.FlagReranker)
+    device = None if settings.device == "auto" else settings.device
+    runtime = factory(
+        settings.model_name,
+        use_fp16=settings.use_fp16,
+        devices=device,
+    )
+    return _FlagEmbeddingRerankerBackend(runtime)
+
+
+def _coerce_scores(raw_scores: object) -> list[float]:
+    if isinstance(raw_scores, int | float):
+        return [float(raw_scores)]
+    if not isinstance(raw_scores, list | tuple):
+        msg = "BGE reranker backend returned an unsupported score shape"
+        raise TypeError(msg)
+    scores = cast("list[object] | tuple[object, ...]", raw_scores)
+    return [_coerce_score(score) for score in scores]
+
+
+def _coerce_score(score: object) -> float:
+    if isinstance(score, int | float):
+        return float(score)
+    msg = "BGE reranker backend returned a non-numeric score"
+    raise TypeError(msg)
 
 
 class Reranker(Protocol):
@@ -69,6 +165,67 @@ class StubReranker:
             for candidate in candidates
         ]
         return _sort_reranked_candidates(scored)
+
+
+class BgeReranker:
+    """BGE cross-encoder reranker behind the retrieval Reranker protocol."""
+
+    def __init__(
+        self,
+        *,
+        settings: BgeRerankerSettings,
+        model_loader: BgeRerankerModelLoader | None = None,
+    ) -> None:
+        self._settings = settings
+        self._model_loader = model_loader or load_flag_embedding_reranker_backend
+        self._backend: BgeRerankerBackend | None = None
+
+    @property
+    def settings(self) -> BgeRerankerSettings:
+        """Return immutable runtime settings without loading the model."""
+        return self._settings
+
+    @property
+    def is_loaded(self) -> bool:
+        """Return whether the lazy model backend has been loaded."""
+        return self._backend is not None
+
+    def rerank(
+        self,
+        query: SearchQuery,
+        candidates: tuple[SearchResult, ...],
+    ) -> tuple[SearchResult, ...]:
+        """Score candidates with BGE and return all candidates reordered."""
+        if not candidates:
+            return ()
+
+        backend = self._load_backend()
+        pairs = [(query.text, candidate.chunk.text) for candidate in candidates]
+        scores = backend.compute_scores(
+            pairs,
+            batch_size=self._settings.batch_size,
+            max_length=self._settings.max_length,
+        )
+        if len(scores) != len(candidates):
+            expected = len(candidates)
+            actual = len(scores)
+            msg = f"BGE reranker returned {actual} scores for {expected} candidates"
+            raise ValueError(msg)
+
+        scored = [
+            SearchResult(
+                chunk=candidate.chunk,
+                score=score,
+                source=candidate.source,
+            )
+            for candidate, score in zip(candidates, scores, strict=True)
+        ]
+        return _sort_reranked_candidates(scored)
+
+    def _load_backend(self) -> BgeRerankerBackend:
+        if self._backend is None:
+            self._backend = self._model_loader(self._settings)
+        return self._backend
 
 
 class RerankRetriever:

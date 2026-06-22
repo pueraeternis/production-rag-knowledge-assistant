@@ -22,6 +22,7 @@ from knowledge_assistant.indexing import (
 from knowledge_assistant.indexing.documents import discover_files
 from knowledge_assistant.retrieval import (
     BgeM3QueryEmbeddingProvider,
+    BgeReranker,
     DenseRetriever,
     FusionRetrievalSettings,
     FusionRetriever,
@@ -45,10 +46,15 @@ class DemoEnvironment:
     vector_store: VectorStore
     indexing_pipeline: IndexingPipeline
     retriever: RerankRetriever
+    reranker: StubReranker | BgeReranker
 
     @property
     def pipeline_label(self) -> str:
         return self.settings.pipeline_label
+
+    @property
+    def retrieval_pipeline_label(self) -> str:
+        return self.pipeline_label
 
     def corpus_exists(self) -> bool:
         return self.settings.corpus_root.is_dir()
@@ -86,6 +92,12 @@ def _build_dense_embedding_runtime(
 ) -> DenseEmbeddingRuntime:
     assert settings.embedding_runtime_settings is not None
     return create_shared_dense_embedding_runtime(settings.embedding_runtime_settings)
+
+
+def _build_reranker(settings: BootstrapSettings) -> StubReranker | BgeReranker:
+    if settings.reranker_mode == "stub":
+        return StubReranker()
+    return BgeReranker(settings=settings.bge_reranker_settings)
 
 
 def build_demo_environment(
@@ -131,9 +143,10 @@ def build_demo_environment(
         sparse_retriever=sparse_retriever,
         settings=FusionRetrievalSettings(),
     )
+    reranker = _build_reranker(resolved_settings)
     retriever = RerankRetriever(
         base_retriever=fusion_retriever,
-        reranker=StubReranker(),
+        reranker=reranker,
         settings=RerankRetrievalSettings(),
     )
 
@@ -142,6 +155,7 @@ def build_demo_environment(
         vector_store=resolved_store,
         indexing_pipeline=indexing_pipeline,
         retriever=retriever,
+        reranker=reranker,
     )
 
 

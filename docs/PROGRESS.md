@@ -6,13 +6,33 @@ Chronological record of completed milestones for Production RAG Knowledge Assist
 
 ## Current Status (2026-06-22)
 
-**Latest completed plan:** [Plan 16 — Real Dense Embeddings Integration](plans/completed/16-real-dense-embeddings-integration.md) (Phase 11 — Real Embedding Models).
+**Latest completed plan:** [Plan 17 — Real Reranker Integration](plans/completed/17-real-reranker.md) (Phase 12 — Real Reranker Integration).
 
 **Current phase:** Phase 12 — Real Reranker Integration ([ROADMAP.md](plans/backlog/ROADMAP.md)).
 
-**Authorized implementation scope:** none (awaiting next active plan).
+**Authorized implementation scope:** see [docs/plans/active/](plans/active/) (none when no plan is active).
 
 **Deferred from Plan 12:** query rewriting and retrieval retry (proposed Plan 12b), MCP SDK transport (proposed Plan 12c), interactive CLI chat (Plan 19).
+
+---
+
+
+## 2026-06-22 — Real Reranker Integration
+
+**Plan:** [17-real-reranker.md](plans/completed/17-real-reranker.md)
+
+Integrated the production BGE reranker runtime behind the existing retrieval protocol:
+
+* added `BgeRerankerSettings` and `BgeReranker` for `BAAI/bge-reranker-v2-m3`;
+* used lazy `FlagEmbedding` backend loading with injectable fake backends for tests;
+* preserved the Plan 09 candidate contract: `N` candidates in, `N` candidates out;
+* replaced reranked `SearchResult.score` values with BGE relevance scores and deterministic score/`chunk_id` ordering;
+* kept `StubReranker` as the default for CI and fallback demo mode;
+* added `RAG_RERANKER_*` environment configuration and real-mode bootstrap selection;
+* updated `rag demo info` pipeline reporting without triggering model load;
+* added mocked reranker unit tests, bootstrap mode tests, and an optional skipped real-model smoke test;
+* recorded ADR-061 through ADR-066 in `docs/DECISIONS.md`;
+* documented real reranker setup in `README.md`, `.env.example`, and `docs/ARCHITECTURE.md`.
 
 ---
 
@@ -20,13 +40,19 @@ Chronological record of completed milestones for Production RAG Knowledge Assist
 
 **Plan:** [16-real-dense-embeddings-integration.md](plans/completed/16-real-dense-embeddings-integration.md)
 
-Replaced stub dense embedding providers with an opt-in BGE-M3 runtime:
+Replaced stub dense embedding providers with real BGE-M3 runtime while preserving ADR-013 layer boundaries:
 
-* added `knowledge_assistant.embeddings` with `DenseEmbeddingRuntime`, `BgeM3FlagEmbeddingRuntime`, and `EmbeddingRuntimeSettings`;
-* added `BgeM3EmbeddingProvider` and `BgeM3QueryEmbeddingProvider` layer adapters;
-* wired `embedding_mode` stub/real through bootstrap with shared runtime injection;
-* kept stub providers as CI/default mode; real-model tests behind `@pytest.mark.embedding_model`;
-* documented ADR-055 through ADR-060 and updated architecture/README workflow.
+* added `knowledge_assistant.embeddings` package with `DenseEmbeddingRuntime`, `BgeM3FlagEmbeddingRuntime`, `EmbeddingRuntimeSettings`, and factory;
+* added `BgeM3EmbeddingProvider` (indexing) and `BgeM3QueryEmbeddingProvider` (retrieval) adapters;
+* bootstrap selects stub (default) vs real dense providers via `RAG_EMBEDDING_MODE`; one shared runtime per `DemoEnvironment` in real mode;
+* `rag demo info` pipeline label reports embedding mode;
+* L2 normalization and dimension validation at runtime boundary;
+* device fail-fast for unavailable `cuda`/`mps` (no silent CPU fallback);
+* `FlagEmbedding` runtime dependency; stub providers retained for CI;
+* import-boundary tests and optional `@pytest.mark.embedding_model` smoke tests;
+* recorded ADR-055 through ADR-060 in `docs/DECISIONS.md`;
+* documented embeddings layer in `docs/ARCHITECTURE.md` and `README.md`;
+* validation suite passed: ruff format, ruff check, basedpyright, pytest (522 tests, 3 deselected model markers).
 
 ---
 

@@ -9,7 +9,12 @@ from typing import Literal, Self, cast
 
 from knowledge_assistant.embeddings import EmbeddingRuntimeSettings
 from knowledge_assistant.indexing.config import IndexingSettings
-from knowledge_assistant.retrieval import DenseRetrievalSettings
+from knowledge_assistant.retrieval import (
+    BgeRerankerSettings,
+    DenseRetrievalSettings,
+    RerankerMode,
+    parse_reranker_mode,
+)
 from knowledge_assistant.storage.collection import DEFAULT_COLLECTION_NAME
 from knowledge_assistant.storage.config import StorageSettings
 
@@ -21,11 +26,21 @@ REAL_PIPELINE_LABEL = (
 )
 
 
-def retrieval_pipeline_label(*, embedding_mode: EmbeddingMode) -> str:
-    """Return the demo retrieval pipeline label for the given embedding mode."""
-    if embedding_mode == "real":
-        return REAL_PIPELINE_LABEL
-    return STUB_PIPELINE_LABEL
+def retrieval_pipeline_label(
+    *,
+    embedding_mode: EmbeddingMode,
+    reranker_mode: RerankerMode = "stub",
+    reranker_model_name: str = "",
+) -> str:
+    """Return the demo retrieval pipeline label for the configured provider modes."""
+    if reranker_mode == "stub":
+        if embedding_mode == "real":
+            return REAL_PIPELINE_LABEL
+        return STUB_PIPELINE_LABEL
+
+    dense_part = "dense (bge-m3)" if embedding_mode == "real" else "dense"
+    rerank_part = reranker_model_name or "bge-reranker"
+    return f"{dense_part} + sparse → fusion (RRF) → rerank ({rerank_part})"
 
 
 @dataclass(frozen=True, slots=True)
@@ -34,10 +49,13 @@ class BootstrapSettings:
 
     corpus_root: Path
     storage_settings: StorageSettings
+    reranker_mode: RerankerMode = "stub"
+    bge_reranker_settings: BgeRerankerSettings = BgeRerankerSettings()
     embedding_mode: EmbeddingMode = "stub"
     embedding_runtime_settings: EmbeddingRuntimeSettings | None = None
 
     def __post_init__(self) -> None:
+        parse_reranker_mode(self.reranker_mode)
         if self.embedding_mode == "real" and self.embedding_runtime_settings is None:
             msg = "embedding_runtime_settings is required when embedding_mode is 'real'"
             raise ValueError(msg)
@@ -57,7 +75,11 @@ class BootstrapSettings:
 
     @property
     def pipeline_label(self) -> str:
-        return retrieval_pipeline_label(embedding_mode=self.embedding_mode)
+        return retrieval_pipeline_label(
+            embedding_mode=self.embedding_mode,
+            reranker_mode=self.reranker_mode,
+            reranker_model_name=self.bge_reranker_settings.model_name,
+        )
 
     @classmethod
     def from_env(cls, **overrides: object) -> Self:
@@ -77,6 +99,22 @@ class BootstrapSettings:
                 storage_overrides[key] = overrides.pop(key)
 
         storage_settings = StorageSettings.from_env(**storage_overrides)
+
+        reranker_mode = parse_reranker_mode(
+            str(
+                overrides.pop(
+                    "reranker_mode",
+                    os.environ.get("RAG_RERANKER_MODE", "stub"),
+                ),
+            ),
+        )
+        bge_reranker_overrides: dict[str, object] = {}
+        for key in ("model_name", "device", "batch_size", "max_length", "use_fp16"):
+            if key in overrides:
+                bge_reranker_overrides[key] = overrides.pop(key)
+        bge_reranker_settings = BgeRerankerSettings.from_env(
+            **bge_reranker_overrides,
+        )
 
         embedding_mode_raw = str(
             overrides.pop(
@@ -111,6 +149,8 @@ class BootstrapSettings:
         return cls(
             corpus_root=corpus_root,
             storage_settings=storage_settings,
+            reranker_mode=reranker_mode,
+            bge_reranker_settings=bge_reranker_settings,
             embedding_mode=embedding_mode,
             embedding_runtime_settings=embedding_runtime_settings,
         )

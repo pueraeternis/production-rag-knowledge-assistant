@@ -59,41 +59,46 @@ Optional environment variable: `RAG_CORPUS_ROOT` (default `knowledge`) overrides
 
 See [Plan 15](docs/plans/completed/15-demo-bootstrap-workflow.md) and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
-## Real Dense Embeddings
+## Real Dense Embeddings (BGE-M3)
 
-Plan 16 delivers an opt-in BGE-M3 dense embedding runtime. Default demo and CI wiring still use stub providers.
-
-1. Copy and edit environment variables (see `.env.example`):
-
-| Variable | Purpose |
-| -------- | ------- |
-| `RAG_EMBEDDING_MODE` | `stub` (default) or `real` |
-| `RAG_EMBEDDING_MODEL` | Hugging Face model id (default `BAAI/bge-m3`) |
-| `RAG_EMBEDDING_DEVICE` | `cpu`, `cuda`, or `mps` |
-| `RAG_EMBEDDING_BATCH_SIZE` | Passage batch size for indexing |
-| `RAG_EMBEDDING_MAX_LENGTH` | Token limit for encoding |
-| `RAG_EMBEDDING_NORMALIZE` | L2-normalize vectors (`true`/`false`) |
-
-2. Enable real embeddings and rebuild the index (vectors are incompatible with stub mode):
+Plan 16 adds opt-in real `BAAI/bge-m3` dense embeddings for indexing and retrieval. Stub providers remain the default for CI and fast local development.
 
 ```bash
 export RAG_EMBEDDING_MODE=real
-uv run rag demo load --rebuild --approve
-```
-
-3. Confirm pipeline mode:
-
-```bash
+export RAG_EMBEDDING_DEVICE=cpu   # or cuda when GPU is available
 uv run rag demo info
 ```
 
-Optional real-model smoke tests (not run in default CI):
+The first real embedding run may download `BAAI/bge-m3` from Hugging Face. When `RAG_EMBEDDING_DEVICE=cuda` is set but CUDA is unavailable, initialization fails fast without falling back to CPU.
+
+**Reindex after switching stub → real** (vectors are incompatible):
 
 ```bash
-uv run pytest -m embedding_model
+rag demo load --rebuild --approve
 ```
 
-See [Plan 16](docs/plans/completed/16-real-dense-embeddings-integration.md) and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+Useful settings: `RAG_EMBEDDING_MODEL`, `RAG_EMBEDDING_BATCH_SIZE`, `RAG_EMBEDDING_MAX_LENGTH`, `RAG_EMBEDDING_NORMALIZE` — see `.env.example`.
+
+**Evaluation comparison:** index with stub vs real bootstrap settings, run `EvaluationRunner` with distinct labels, then `compare_evaluation_reports` — Plan 13 APIs are unchanged.
+
+See [Plan 16](docs/plans/completed/16-real-dense-embeddings-integration.md).
+
+## Real Reranker
+
+Plan 17 adds an opt-in real BGE reranker behind the existing retrieval protocol. Stub reranking remains the default for fast local runs and CI.
+
+To enable the real reranker for demo retrieval wiring:
+
+```bash
+export RAG_RERANKER_MODE=real
+export RAG_RERANKER_MODEL=BAAI/bge-reranker-v2-m3
+export RAG_RERANKER_DEVICE=cpu   # or auto, cuda, cuda:0
+uv run rag demo info
+```
+
+`rag demo info` reports the configured reranker mode/model but does not load the model. The first non-empty real rerank call loads `FlagEmbedding` and may download model weights from Hugging Face unless they are already cached. CPU is supported; GPU users can set `RAG_RERANKER_DEVICE=cuda` or an explicit device and may set `RAG_RERANKER_USE_FP16=true` for supported GPU execution.
+
+Useful settings: `RAG_RERANKER_BATCH_SIZE` (default `16`), `RAG_RERANKER_MAX_LENGTH` (default `1024`), and `RAG_RERANKER_ENABLE_REAL_TESTS=true` for the optional local real-model smoke test. Scores from the real reranker are ordinal relevance scores, not probabilities.
 
 ## Retrieval Evaluation
 
