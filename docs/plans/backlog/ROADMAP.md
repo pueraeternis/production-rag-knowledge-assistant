@@ -10,6 +10,27 @@ Authorized implementation scope is defined exclusively by active plans.
 
 ---
 
+# Project Progression
+
+The project has completed architecture construction (foundation through evaluation framework). Remaining work moves toward a working educational demo:
+
+```text
+Foundation
+→ Retrieval
+→ MCP
+→ Agent
+→ Evaluation
+→ Knowledge Corpus
+→ Demo Bootstrap
+→ Real Models
+→ Benchmark Evaluation
+→ Interactive Demo
+```
+
+Phases 1–8 are complete. Phases 9–14 deliver corpus content, demo workflow, real model integration, benchmark evaluation, and interactive chat.
+
+---
+
 # Phase 1 — Foundation
 
 Goal:
@@ -18,8 +39,8 @@ Establish project structure, development workflow, and architectural boundaries.
 
 Plans:
 
-* Plan 01 — Project Bootstrap
-* Plan 02 — Python Bootstrap
+* Plan 01 — Project Bootstrap *(completed)*
+* Plan 02 — Python Bootstrap *(completed)*
 
 Deliverables:
 
@@ -39,7 +60,7 @@ Define the core data model shared across all system layers.
 
 Plans:
 
-* Plan 03 — Domain Models
+* Plan 03 — Domain Models *(completed)*
 
 Deliverables:
 
@@ -64,15 +85,15 @@ Build the document ingestion pipeline.
 
 Plans:
 
-* Plan 04 — Storage Layer
-* Plan 05 — Indexing Pipeline
+* Plan 04 — Storage Layer *(completed)*
+* Plan 05 — Indexing Pipeline *(completed)*
 
 Deliverables:
 
 * Qdrant integration
 * document loading
 * chunking
-* embedding generation
+* embedding generation (stub provider)
 * indexing workflow
 
 Key Principle:
@@ -89,17 +110,17 @@ Implement production-style retrieval.
 
 Plans:
 
-* Plan 06 — Dense Retrieval
-* Plan 07 — Sparse Retrieval
-* Plan 08 — Fusion
-* Plan 09 — Reranking
+* Plan 06 — Dense Retrieval *(completed)*
+* Plan 07 — Sparse Retrieval *(completed)*
+* Plan 08 — Fusion *(completed)*
+* Plan 09 — Reranking *(completed)*
 
 Deliverables:
 
 * vector retrieval
 * BM25 retrieval
 * rank fusion
-* reranking
+* reranking (stub reranker)
 
 Target Pipeline:
 
@@ -112,6 +133,10 @@ Fusion
 Reranker
 ↓
 Top Context
+
+Notes:
+
+Dense, sparse, and reranker paths use development stubs. Real model runtimes are deferred to Phases 11–12.
 
 ---
 
@@ -189,10 +214,9 @@ Deferred *(not part of Plan 12; future plans)*:
 
 * query rewriting and retrieval retry — proposed **Plan 12b**
 * MCP SDK client/server transport — proposed **Plan 12c**
-* CLI chat UX and interactive approval prompts
 * durable conversation memory and LangGraph checkpointers
 
-**Next roadmap phase:** Phase 8 — Evaluation (Plan 13). No plan file is in backlog yet; see Phase 8 below.
+Interactive CLI chat UX is deferred to Phase 14 (Plan 19).
 
 ---
 
@@ -204,32 +228,193 @@ Measure retrieval quality and demonstrate production practices.
 
 Plans:
 
-* Plan 13 — Evaluation Framework
+* Plan 13 — Evaluation Framework *(completed: [13-evaluation-framework.md](../completed/13-evaluation-framework.md))*
 
-Deliverables:
+Deliverables *(Plan 13 — implemented)*:
 
-* retrieval metrics
-* benchmark dataset
-* evaluation scenarios
+* retrieval metrics (Hit Rate@K, Recall@K, MRR)
+* committed retrieval benchmark (`data/evaluation/retrieval_benchmark_v1.json`)
+* `EvaluationRunner` and strategy comparison (`ComparisonReport`)
+* evaluation layer in `knowledge_assistant.evaluation`
+
+Deferred *(not part of Plan 13; future plans)*:
+
+* CLI subcommand wiring for evaluation output — Phase 13 (Plan 18)
+* full-benchmark integration tests against indexed corpus — Phase 13 (Plan 18)
+
+**Next roadmap phase:** Phase 10 — Demo Bootstrap Workflow (Plan 15).
 
 ---
 
-# Phase 9 — Demo Completion
+# Phase 9 — Synthetic Knowledge Base
 
 Goal:
 
-Complete the educational RAG assistant.
+Create the canonical AcmeCloud Analytics enterprise corpus.
 
 Plans:
 
-* Plan 14 — Demo Dataset
-* Plan 15 — End-to-End Demo
+* Plan 14 — Synthetic Corporate Knowledge Base *(completed: [14-synthetic-knowledge-base.md](../completed/14-synthetic-knowledge-base.md))*
 
-Deliverables:
+Scope:
 
-* synthetic company knowledge base
-* complete assistant workflow
-* lecture demonstration environment
+* 80–100 markdown documents
+* realistic company structure
+* cross-linked documentation
+* policies
+* runbooks
+* platform architecture docs
+* RFCs
+* postmortems
+* internal service catalog
+
+Deliverables *(Plan 14 — implemented)*:
+
+* corpus specification — [14-synthetic-knowledge-base.md](../completed/14-synthetic-knowledge-base.md)
+* tracked generator assets under `tools/knowledge_generator/` with manifest, templates, and quality gates
+* local generated corpus — **96** markdown files under gitignored `knowledge/` (regenerate: `python3 tools/knowledge_generator/generator.py`)
+* `knowledge/README.md` corpus index (generated locally)
+* benchmark-aligned policy and procedure paths for `retrieval_benchmark_v1.json`
+* `.gitignore` entry for `knowledge/`
+
+Notes:
+
+This phase is **content-only**. No retrieval, indexing, CLI, MCP, agent, or model changes.
+
+Generated corpus files are **not** source-controlled. The repository tracks the specification, generator, templates, manifest, quality gates, and regeneration instructions.
+
+The local `knowledge/` tree is the single canonical knowledge base for demo bootstrap, benchmark evaluation, and interactive chat after generation. Fresh clones can regenerate it with `python3 tools/knowledge_generator/generator.py`. Do not create a separate demo corpus.
+
+---
+
+# Phase 10 — Demo Bootstrap Experience
+
+Goal:
+
+Provide a zero-to-working-demo experience.
+
+Plans:
+
+* Plan 15 — Demo Bootstrap Workflow *(backlog — not yet authored)*
+
+User flow:
+
+```text
+git clone
+docker compose up
+rag demo load
+rag chat
+```
+
+Scope:
+
+* CLI demo commands
+* corpus discovery against `knowledge/` from Plan 14
+* indexing execution
+* collection initialization
+* demo status commands
+
+Commands:
+
+* `rag demo info` — corpus and index status
+* `rag demo load` — index the canonical corpus
+* `rag demo reset` — reset demo index state
+
+Notes:
+
+The workflow must use the canonical knowledge corpus created in Plan 14. Do not create a separate demo corpus.
+
+Interactive chat is deferred to Phase 14 (Plan 19). This phase delivers bootstrap and indexing only.
+
+---
+
+# Phase 11 — Real Embeddings Integration
+
+Goal:
+
+Replace stub embedding providers with production models.
+
+Plans:
+
+* Plan 16 — Real Embeddings Integration *(backlog — not yet authored)*
+
+Scope:
+
+* BAAI/bge-m3
+* indexing embeddings (`EmbeddingProvider`)
+* retrieval query embeddings (`QueryEmbeddingProvider`)
+
+Notes:
+
+Indexing sparse vector generation remains a separate concern (see ADR-020). This plan targets dense embedding paths only.
+
+---
+
+# Phase 12 — Real Reranker Integration
+
+Goal:
+
+Replace stub reranker with production cross-encoder.
+
+Plans:
+
+* Plan 17 — Real Reranker Integration *(backlog — not yet authored)*
+
+Scope:
+
+* BAAI/bge-reranker-v2-m3
+
+---
+
+# Phase 13 — End-to-End Evaluation
+
+Goal:
+
+Run Dense vs Sparse vs Fusion vs Rerank against the evaluation benchmark using real indexed corpus data.
+
+Plans:
+
+* Plan 18 — Retrieval Strategy Evaluation *(backlog — not yet authored)*
+
+Scope:
+
+* index canonical corpus (via Plan 15 bootstrap or equivalent wiring)
+* run all four retrieval strategies through `EvaluationRunner`
+* produce side-by-side strategy comparison
+
+Outputs:
+
+* `ComparisonReport`
+* retrieval metrics
+* benchmark results
+
+Notes:
+
+Requires Plan 14 corpus, Plan 15 bootstrap workflow, and real model integration (Phases 11–12) for meaningful results. Framework and benchmark from Plan 13 are prerequisites.
+
+---
+
+# Phase 14 — Interactive Chat Experience
+
+Goal:
+
+Deliver the user-facing conversational demo.
+
+Plans:
+
+* Plan 19 — Interactive Chat Experience *(backlog — not yet authored)*
+
+Scope:
+
+* CLI chat (`rag chat`)
+* agent integration
+* MCP integration
+* source citations
+* conversational demo UX
+
+Notes:
+
+Completes the lecture demonstration path begun in Phase 10. Depends on indexed corpus, real models, and working agent/MCP wiring.
 
 ---
 
@@ -241,6 +426,7 @@ The project prioritizes:
 2. Source attribution
 3. MCP integration
 4. Agent orchestration
+5. Realistic demo experience
 
 The project does not prioritize:
 

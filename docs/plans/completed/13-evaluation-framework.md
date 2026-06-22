@@ -107,7 +107,7 @@ This plan does **not** authorize:
 * automated LLM-generated benchmark expansion;
 * evaluation report persistence to database or external observability platforms;
 * Langfuse, tracing, or production monitoring;
-* CLI subcommand wiring (deferred to Plan 15 or a dedicated CLI plan);
+* CLI subcommand wiring (deferred to Plan 18 — Retrieval Strategy Evaluation and Plan 15 — Demo Bootstrap Workflow);
 * Docker Compose, live Qdrant smoke requirements for unit tests;
 * Pydantic in evaluation production code (frozen dataclasses per ADR-001 style).
 
@@ -169,7 +169,7 @@ The following decisions are **proposed** for Plan 13. Implementation must follow
 
 #### Context
 
-Retrieval evaluation requires stable ground-truth labels independent of any one retriever. The project knowledge base consists of **synthetic corporate documents** (remote work policy, onboarding, travel, security, etc.) per `PROJECT.md`. Plan 14 will expand the committed demo corpus; Plan 13 must define a **first-class benchmark** that targets that corpus — not indexing unit-test fixtures under `tests/`.
+Retrieval evaluation requires stable ground-truth labels independent of any one retriever. The project knowledge base consists of **synthetic corporate documents** (remote work policy, onboarding, travel, security, etc.) per `PROJECT.md`. Plan 14 will commit the canonical synthetic knowledge corpus under `knowledge/`; Plan 13 must define a **first-class benchmark** that targets that corpus — not indexing unit-test fixtures under `tests/`.
 
 The benchmark is a project asset owned by the evaluation layer. Test fixtures remain test fixtures: they may reuse similar *shapes* for loader validation but must not define benchmark validity or long-term label provenance.
 
@@ -215,7 +215,7 @@ The benchmark is a project asset owned by the evaluation layer. Test fixtures re
   * each registry entry has non-empty `path`.
 * **Plan 13 v1 uses document-level labels only.** Optional chunk-level labels are **not** part of the v1 schema.
 * **Manual curation.** Maintainers author questions against the synthetic knowledge-base corpus. Paths in the registry align with the planned corpus layout (`PROJECT.md` policy document themes).
-* **Target scale:** **50–100** evaluation questions for meaningful strategy comparison (see Design Evaluation 5). Plan 13 may land the framework before all cases are authored; acceptance requires the format, loader, and comparison tooling — full benchmark population may complete incrementally before Plan 15 demo, but **50–100** is the design target, not a minimal smoke subset.
+* **Target scale:** **50–100** evaluation questions for meaningful strategy comparison (see Design Evaluation 5). Plan 13 may land the framework before all cases are authored; acceptance requires the format, loader, and comparison tooling — full benchmark population may complete incrementally before Plan 18 end-to-end evaluation, but **50–100** is the design target, not a minimal smoke subset.
 * **No dependency on `tests/` fixtures.** Unit tests validate loaders and metrics using tiny JSON files in `tests/unit/evaluation/fixtures/` only. The production benchmark lives exclusively under `data/evaluation/`.
 * Plan 14 may add corpus files under a knowledge-base directory; Plan 13 benchmark registry paths must remain consistent with that layout. Plan 14 does not own the benchmark — it owns corpus content; evaluation owns benchmark labels.
 
@@ -735,7 +735,7 @@ Metric functions may remain module-level exports for unit tests without re-expor
 
 | Consumer | Allowed |
 | -------- | ------- |
-| `cli` | yes (future Plan 15) |
+| `cli` | yes (future Plan 15 — Demo Bootstrap Workflow; Plan 18 — Retrieval Strategy Evaluation) |
 | tests | yes |
 | `retrieval`, `storage`, `indexing`, `mcp_server`, `agent`, `llm` | **no** (retrieval must not depend on evaluation) |
 
@@ -894,7 +894,7 @@ Plan 13 adds **no new runtime dependencies** to `pyproject.toml`. JSON loading a
 | Hit Rate@K and Recall@K redundancy in v1 | Document identical values under single-relevant-doc assumption; keep both names for future qrels |
 | Chunking changes invalidate future chunk labels | v1 is document-level only per ADR-048 |
 | Sparse placeholder corpus yields poor sparse metrics | Expected for stub sparse vectors (ADR-020); comparison still shows relative strategy differences |
-| Benchmark under-populated (<50 cases) | Design target 50–100 documented; incremental curation acceptable before Plan 15 demo |
+| Benchmark under-populated (<50 cases) | Design target 50–100 documented; incremental curation acceptable before Plan 18 end-to-end evaluation |
 | Plan 14 corpus not ready at Plan 13 start | Benchmark registry declares planned paths; framework + comparison ship first; questions added as corpus lands |
 
 ---
@@ -903,22 +903,25 @@ Plan 13 adds **no new runtime dependencies** to `pyproject.toml`. JSON loading a
 
 | Item | Target |
 | ---- | ------ |
-| Plan 14 — Demo Dataset | Full synthetic corporate knowledge base |
-| Plan 15 — End-to-End Demo | CLI commands printing `ComparisonReport` tables for lecture demo |
+| Plan 14 — Synthetic Corporate Knowledge Base | Canonical AcmeCloud Analytics corpus under `knowledge/` (Phase 9) |
+| Plan 15 — Demo Bootstrap Workflow | `rag demo info`, `rag demo load`, `rag demo reset`; index canonical corpus (Phase 10) |
+| Plan 16 — Real Embeddings Integration | BAAI/bge-m3 for indexing and retrieval embeddings (Phase 11) |
+| Plan 17 — Real Reranker Integration | BAAI/bge-reranker-v2-m3 cross-encoder runtime (Phase 12) |
+| Plan 18 — Retrieval Strategy Evaluation | CLI commands printing `ComparisonReport` tables; benchmark against indexed corpus (Phase 13) |
+| Plan 19 — Interactive Chat Experience | `rag chat`; agent, MCP, and source-citation demo UX (Phase 14) |
 | NDCG / MAP / graded metrics | Future evaluation plan after multi-level or multi-document qrels |
 | Chunk-level expected labels | Future dataset schema revision |
 | LLM-as-a-Judge answer evaluation | Explicit non-goal per PROJECT.md |
 | Agent / MCP / tool-calling evaluation | Future plans outside retrieval-quality scope |
 | Latency and cost metrics | Future observability plan |
 | Automated benchmark generation | Backlog only; manual curation remains default |
-| Real BGE runtime retriever comparison | Depends on backlog BGE embedding/reranker plans |
 | Query rewriting impact evaluation | Proposed Plan 12b |
 
 ---
 
 ## Open Questions
 
-1. **Exact benchmark size at Plan 13 merge:** design target **50–100** cases — confirm whether full population is required for plan completion or incremental curation through Plan 14/15 is acceptable.
+1. **Exact benchmark size at Plan 13 merge:** design target **50–100** cases — confirm whether full population is required for plan completion or incremental curation through Plan 14 / Plan 18 is acceptable.
 2. **Synthetic KB directory layout:** confirm canonical root path prefix for registry entries (e.g. `knowledge/policies/...`) relative to repository root — coordinate with Plan 14.
 3. **Fail-fast vs continue-on-error:** draft default is fail-fast — confirm during activation.
 4. **Optional full-benchmark CI job:** confirm whether running all 50–100 cases against four retrievers belongs in default CI or a marked slow integration job.

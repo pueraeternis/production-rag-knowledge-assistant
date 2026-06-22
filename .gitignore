@@ -1,11 +1,13 @@
 # Byte-compiled / optimized / DLL files
 __pycache__/
-*.py[codz]
+*.pyc
+*.pyo
 *$py.class
 
 # Local
 
 .local
+knowledge/
 # Cursor
 .cursor/
 .cursor/rules/

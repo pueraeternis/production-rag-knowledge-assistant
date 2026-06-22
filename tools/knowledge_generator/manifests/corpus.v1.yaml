@@ -1,0 +1,2933 @@
+{
+  "version": 1,
+  "company": "AcmeCloud Analytics",
+  "output_root": "knowledge",
+  "defaults": {
+    "status": "Approved",
+    "last_reviewed": "2026-03-01",
+    "min_words": 700
+  },
+  "systems": {
+    "Atlas": "Control plane for tenant provisioning, cell routing, and deployment orchestration",
+    "Beacon": "Observability ingestion for metrics, logs, and traces",
+    "Mercury": "Streaming pipeline runtime for real-time ingest and stream processing",
+    "Orion": "Model serving platform for online inference and GPU scheduling",
+    "Ledger": "Billing and usage metering for compute, storage, and inference",
+    "Gatehouse": "Identity and access control with SSO, RBAC, and workspace ACLs",
+    "Harbor": "Data lake storage layer with object storage and table formats"
+  },
+  "benchmark_paths": [
+    "policies/remote_work_policy.md",
+    "policies/onboarding_policy.md",
+    "policies/travel_policy.md",
+    "policies/security_policy.md",
+    "policies/equipment_policy.md",
+    "policies/expense_policy.md",
+    "procedures/incident_response.md"
+  ],
+  "documents": [
+    {
+      "path": "ai-platform/ai_platform_overview.md",
+      "title": "AI Platform Overview",
+      "type": "architecture",
+      "owner": "AI Platform",
+      "owner_contact": "ml-platform@acmecloud.io",
+      "related_systems": [
+        "Atlas",
+        "Beacon",
+        "Orion",
+        "Ledger",
+        "Gatehouse",
+        "Harbor"
+      ],
+      "related_documents": [
+        "feature_store_guide.md",
+        "rfcs/rfc_005_llm_gateway.md",
+        "model_serving_runbook.md",
+        "company/glossary.md"
+      ],
+      "required_facts": [
+        "AI Platform Overview documents how AcmeCloud's AI Platform organization designs, deploys, and operates the platform services behind customer-facing products.",
+        "This architecture spans regional cells (`us-east`, `us-west`, `eu-central`) and integrates with internal systems: Orion, Harbor, Gatehouse.",
+        "AI Platform validated overview on Orion in `eu-central` during the Q1 game day; notes in DOCS-4485.",
+        "Architecture review referenced overview when approving the `eu-central` Orion change window (DOCS-1373).",
+        "Core components include Orion, Harbor, Gatehouse, each with distinct ownership boundaries and SLO dashboards in Beacon.",
+        "Regarding **Orion model serving**: Orion deploys through canary channels (5% → 25% → 100%) with GPU scheduling quotas enforced per workspace via Ledger meters. Cell `eu-central` runs staged validation on Orion before Atlas promotes configuration; rollback steps must be attached to DOCS-4449.",
+        "**Feature store integration** — Offline Harbor features feed online Orion serving; point-in-time joins validated in CI before promotion. In production, AI Platform validates this through Harbor dashboards in cell `us-east` before quarterly review; changes are tracked under DOCS-1069.",
+        "Regarding **Model registry and training**: Training pipelines write artifacts to the registry; only promoted versions receive Atlas routes to Orion production cells. Cell `us-west` runs staged validation on Gatehouse before Atlas promotes configuration; rollback steps must be attached to DOCS-7497."
+      ],
+      "min_words": 975
+    },
+    {
+      "path": "ai-platform/feature_store_guide.md",
+      "title": "Feature Store Guide",
+      "type": "handbook",
+      "owner": "AI Platform",
+      "owner_contact": "feature-store@acmecloud.io",
+      "related_systems": [
+        "Atlas",
+        "Orion",
+        "Ledger",
+        "Gatehouse",
+        "Harbor"
+      ],
+      "related_documents": [
+        "rfcs/rfc_002_feature_store_design.md",
+        "postmortems/2025-06-01-feature-store-degradation.md",
+        "data-platform/schema_registry.md"
+      ],
+      "required_facts": [
+        "Feature Store Guide is the AI Platform reference for how teams build, ship, and operate software at AcmeCloud.",
+        "It complements platform runbooks and applies to engineers working with Orion, Harbor, Gatehouse across all regional cells.",
+        "New hires complete LMS training modules referencing `ai-platform/feature_store_guide.md` before receiving Gatehouse production elevation.",
+        "AI Platform validated overview on Orion in `us-east` during the Q1 game day; notes in DOCS-9010.",
+        "FinOps correlated Orion usage with Ledger exports when reviewing overview for `ai-platform/feature_store_guide.md` (DOCS-8891).",
+        "Security attested Gatehouse groups tied to overview remained least-privilege after the `us-east` audit (DOCS-3150).",
+        "**Architecture:** Offline store on Harbor; online features via Orion. Teams document exceptions in Jira with Security review when Orion access patterns change.",
+        "**RFC-002:** Aligned with RFC-002 feature store design. Teams document exceptions in Jira with Security review when Orion access patterns change."
+      ],
+      "min_words": 650
+    },
+    {
+      "path": "ai-platform/ml_incident_playbook.md",
+      "title": "ML Incident Playbook",
+      "type": "runbook",
+      "owner": "AI Platform",
+      "owner_contact": "ml-platform@acmecloud.io",
+      "related_systems": [
+        "Atlas",
+        "Beacon",
+        "Orion",
+        "Ledger",
+        "Gatehouse",
+        "Harbor"
+      ],
+      "related_documents": [
+        "model_serving_runbook.md",
+        "procedures/incident_response.md",
+        "postmortems/2026-01-22-model-serving-latency.md"
+      ],
+      "required_facts": [
+        "This runbook guides AI Platform engineers through `ML Incident Playbook` for production systems (Orion, Harbor, Gatehouse).",
+        "Use during planned maintenance or incident mitigation when Orion behavior must change under time pressure.",
+        "AI Platform validated purpose on Orion in `us-west` during the Q1 game day; notes in DOCS-9991.",
+        "Security attested Gatehouse groups tied to purpose remained least-privilege after the `eu-central` audit (DOCS-5732).",
+        "Architecture review referenced purpose when approving the `us-east` Gatehouse change window (DOCS-2250).",
+        "Active Gatehouse session with `ai-platform-ml_incident_playbook-write` group membership.",
+        "Change ticket DOCS-8111 or active incident bridge for emergency execution.",
+        "Beacon dashboards for Orion open and recording baseline metrics for `us-west`."
+      ],
+      "min_words": 650
+    },
+    {
+      "path": "ai-platform/model_registry.md",
+      "title": "Model Registry",
+      "type": "handbook",
+      "owner": "AI Platform",
+      "owner_contact": "ml-platform@acmecloud.io",
+      "related_systems": [
+        "Atlas",
+        "Orion",
+        "Ledger",
+        "Gatehouse",
+        "Harbor"
+      ],
+      "related_documents": [
+        "model_serving_runbook.md",
+        "model_training_pipelines.md",
+        "security/access_management.md"
+      ],
+      "required_facts": [
+        "Model Registry is the AI Platform reference for how teams build, ship, and operate software at AcmeCloud.",
+        "It complements platform runbooks and applies to engineers working with Orion, Harbor, Gatehouse across all regional cells.",
+        "New hires complete LMS training modules referencing `ai-platform/model_registry.md` before receiving Gatehouse production elevation.",
+        "AI Platform validated overview on Orion in `eu-central` during the Q1 game day; notes in DOCS-6036.",
+        "FinOps correlated Orion usage with Ledger exports when reviewing overview for `ai-platform/model_registry.md` (DOCS-7628).",
+        "Security attested Gatehouse groups tied to overview remained least-privilege after the `eu-central` audit (DOCS-4025).",
+        "**Versions:** Model version promotion states: staging, production, archived. Teams document exceptions in Jira with Security review when Orion access patterns change.",
+        "**Gatehouse:** Access controlled per model namespace. Teams document exceptions in Jira with Security review when Orion access patterns change."
+      ],
+      "min_words": 650
+    },
+    {
+      "path": "ai-platform/model_serving_runbook.md",
+      "title": "Model Serving Runbook",
+      "type": "runbook",
+      "owner": "AI Platform",
+      "owner_contact": "ml-platform@acmecloud.io",
+      "related_systems": [
+        "Atlas",
+        "Beacon",
+        "Orion",
+        "Ledger",
+        "Gatehouse",
+        "Harbor"
+      ],
+      "related_documents": [
+        "model_registry.md",
+        "online_inference_slos.md",
+        "postmortems/2026-01-22-model-serving-latency.md",
+        "sre/deployment_runbook.md"
+      ],
+      "required_facts": [
+        "This runbook guides AI Platform engineers through `Model Serving Runbook` for production systems (Orion, Harbor, Gatehouse).",
+        "Use during planned maintenance or incident mitigation when Orion behavior must change under time pressure.",
+        "AI Platform validated purpose on Orion in `us-east` during the Q1 game day; notes in DOCS-6029.",
+        "Security attested Gatehouse groups tied to purpose remained least-privilege after the `us-west` audit (DOCS-8090).",
+        "Architecture review referenced purpose when approving the `eu-central` Gatehouse change window (DOCS-1974).",
+        "Active Gatehouse session with `ai-platform-model_serving_runbook-write` group membership.",
+        "Change ticket DOCS-5908 or active incident bridge for emergency execution.",
+        "Beacon dashboards for Orion open and recording baseline metrics for `us-east`."
+      ],
+      "min_words": 650
+    },
+    {
+      "path": "ai-platform/model_training_pipelines.md",
+      "title": "Model Training Pipelines",
+      "type": "handbook",
+      "owner": "AI Platform",
+      "owner_contact": "ml-platform@acmecloud.io",
+      "related_systems": [
+        "Atlas",
+        "Orion",
+        "Ledger",
+        "Gatehouse",
+        "Harbor"
+      ],
+      "related_documents": [
+        "feature_store_guide.md",
+        "model_registry.md",
+        "data-platform/batch_pipeline_guide.md"
+      ],
+      "required_facts": [
+        "Model Training Pipelines is the AI Platform reference for how teams build, ship, and operate software at AcmeCloud.",
+        "It complements platform runbooks and applies to engineers working with Orion, Harbor, Gatehouse across all regional cells.",
+        "New hires complete LMS training modules referencing `ai-platform/model_training_pipelines.md` before receiving Gatehouse production elevation.",
+        "AI Platform validated overview on Orion in `us-east` during the Q1 game day; notes in DOCS-8273.",
+        "FinOps correlated Orion usage with Ledger exports when reviewing overview for `ai-platform/model_training_pipelines.md` (DOCS-1363).",
+        "Security attested Gatehouse groups tied to overview remained least-privilege after the `us-east` audit (DOCS-3582).",
+        "**Pipeline meaning:** ML training workflows reading Harbor features, writing model artifacts. Teams document exceptions in Jira with Security review when Orion access patterns change.",
+        "**Orchestration:** Scheduled jobs with experiment tracking. Teams document exceptions in Jira with Security review when Orion access patterns change."
+      ],
+      "min_words": 650
+    },
+    {
+      "path": "ai-platform/online_inference_slos.md",
+      "title": "Online Inference SLOs",
+      "type": "handbook",
+      "owner": "AI Platform",
+      "owner_contact": "ml-platform@acmecloud.io",
+      "related_systems": [
+        "Atlas",
+        "Orion",
+        "Ledger",
+        "Gatehouse",
+        "Harbor"
+      ],
+      "related_documents": [
+        "model_serving_runbook.md",
+        "observability-platform/slo_framework.md",
+        "sre/error_budget_policy.md"
+      ],
+      "required_facts": [
+        "Online Inference SLOs is the AI Platform reference for how teams build, ship, and operate software at AcmeCloud.",
+        "It complements platform runbooks and applies to engineers working with Orion, Harbor, Gatehouse across all regional cells.",
+        "New hires complete LMS training modules referencing `ai-platform/online_inference_slos.md` before receiving Gatehouse production elevation.",
+        "AI Platform validated overview on Orion in `us-east` during the Q1 game day; notes in DOCS-2390.",
+        "FinOps correlated Orion usage with Ledger exports when reviewing overview for `ai-platform/online_inference_slos.md` (DOCS-4925).",
+        "Security attested Gatehouse groups tied to overview remained least-privilege after the `us-east` audit (DOCS-3945).",
+        "**Orion SLOs:** P99 latency and availability targets per cell. Teams document exceptions in Jira with Security review when Orion access patterns change.",
+        "**Error budget:** Tied to SRE error budget policy. Teams document exceptions in Jira with Security review when Orion access patterns change."
+      ],
+      "min_words": 650
+    },
+    {
+      "path": "ai-platform/responsible_ai_guidelines.md",
+      "title": "Responsible AI Guidelines",
+      "type": "handbook",
+      "owner": "AI Platform",
+      "owner_contact": "responsible-ai@acmecloud.io",
+      "related_systems": [
+        "Atlas",
+        "Orion",
+        "Ledger",
+        "Gatehouse",
+        "Harbor"
+      ],
+      "related_documents": [
+        "ai_platform_overview.md",
+        "security/customer_data_handling.md",
+        "product/prd_guidelines.md"
+      ],
+      "required_facts": [
+        "Responsible AI Guidelines is the AI Platform reference for how teams build, ship, and operate software at AcmeCloud.",
+        "It complements platform runbooks and applies to engineers working with Orion, Harbor, Gatehouse across all regional cells.",
+        "New hires complete LMS training modules referencing `ai-platform/responsible_ai_guidelines.md` before receiving Gatehouse production elevation.",
+        "AI Platform validated overview on Orion in `us-east` during the Q1 game day; notes in DOCS-8126.",
+        "FinOps correlated Orion usage with Ledger exports when reviewing overview for `ai-platform/responsible_ai_guidelines.md` (DOCS-2438).",
+        "Security attested Gatehouse groups tied to overview remained least-privilege after the `us-east` audit (DOCS-5546).",
+        "**Principles:** Fairness review, human oversight, transparency. Teams document exceptions in Jira with Security review when Orion access patterns change.",
+        "**PII:** Follow data classification and Gatehouse policies. Teams document exceptions in Jira with Security review when Orion access patterns change."
+      ],
+      "min_words": 650
+    },
+    {
+      "path": "analytics-platform/analytics_platform_overview.md",
+      "title": "Analytics Platform Overview",
+      "type": "architecture",
+      "owner": "Analytics Platform",
+      "owner_contact": "analytics@acmecloud.io",
+      "related_systems": [
+        "Atlas",
+        "Beacon",
+        "Ledger",
+        "Gatehouse",
+        "Harbor"
+      ],
+      "related_documents": [
+        "semantic_layer.md",
+        "rfcs/rfc_001_clickhouse_migration.md",
+        "data-platform/data_platform_overview.md"
+      ],
+      "required_facts": [
+        "Analytics Platform Overview documents how AcmeCloud's Analytics Platform organization designs, deploys, and operates the platform services behind customer-facing products.",
+        "This architecture spans regional cells (`us-east`, `us-west`, `eu-central`) and integrates with internal systems: Harbor, Atlas, Beacon.",
+        "Analytics Platform validated overview on Harbor in `us-west` during the Q1 game day; notes in DOCS-4730.",
+        "Architecture review referenced overview when approving the `us-west` Harbor change window (DOCS-6762).",
+        "SRE paired with Analytics Platform on a Harbor rollback drill covering overview scenarios in `us-west` (DOCS-5649).",
+        "Security attested Gatehouse groups tied to overview remained least-privilege after the `us-west` audit (DOCS-2371).",
+        "Core components include Harbor, Atlas, Beacon, each with distinct ownership boundaries and SLO dashboards in Beacon.",
+        "**Insights** — Semantic layer and dashboards over Harbor curated data. In production, Analytics Platform validates this through Harbor dashboards in cell `us-west` before quarterly review; changes are tracked under DOCS-1114."
+      ],
+      "min_words": 980
+    },
+    {
+      "path": "analytics-platform/analytics_release_process.md",
+      "title": "Analytics Release Process",
+      "type": "handbook",
+      "owner": "Analytics Platform",
+      "owner_contact": "analytics@acmecloud.io",
+      "related_systems": [
+        "Atlas",
+        "Beacon",
+        "Ledger",
+        "Gatehouse",
+        "Harbor"
+      ],
+      "related_documents": [
+        "sre/error_budget_policy.md",
+        "observability-platform/slo_framework.md",
+        "semantic_layer.md"
+      ],
+      "required_facts": [
+        "Analytics Release Process is the Analytics Platform reference for how teams build, ship, and operate software at AcmeCloud.",
+        "It complements platform runbooks and applies to engineers working with Harbor, Atlas, Beacon across all regional cells.",
+        "New hires complete LMS training modules referencing `analytics-platform/analytics_release_process.md` before receiving Gatehouse production elevation.",
+        "Analytics Platform validated overview on Harbor in `eu-central` during the Q1 game day; notes in DOCS-1864.",
+        "FinOps correlated Harbor usage with Ledger exports when reviewing overview for `analytics-platform/analytics_release_process.md` (DOCS-3816).",
+        "Security attested Gatehouse groups tied to overview remained least-privilege after the `eu-central` audit (DOCS-2306).",
+        "**Gates:** SLO checks via Beacon before semantic layer promote. Teams document exceptions in Jira with Security review when Harbor access patterns change.",
+        "**Freeze:** Error budget policy may block releases. Teams document exceptions in Jira with Security review when Harbor access patterns change."
+      ],
+      "min_words": 650
+    },
+    {
+      "path": "analytics-platform/dashboard_standards.md",
+      "title": "Dashboard Standards",
+      "type": "handbook",
+      "owner": "Analytics Platform",
+      "owner_contact": "analytics@acmecloud.io",
+      "related_systems": [
+        "Atlas",
+        "Beacon",
+        "Ledger",
+        "Gatehouse",
+        "Harbor"
+      ],
+      "related_documents": [
+        "semantic_layer.md",
+        "observability-platform/slo_framework.md",
+        "query_performance_guide.md"
+      ],
+      "required_facts": [
+        "Dashboard Standards is the Analytics Platform reference for how teams build, ship, and operate software at AcmeCloud.",
+        "It complements platform runbooks and applies to engineers working with Harbor, Atlas, Beacon across all regional cells.",
+        "New hires complete LMS training modules referencing `analytics-platform/dashboard_standards.md` before receiving Gatehouse production elevation.",
+        "Analytics Platform validated overview on Harbor in `eu-central` during the Q1 game day; notes in DOCS-6947.",
+        "FinOps correlated Harbor usage with Ledger exports when reviewing overview for `analytics-platform/dashboard_standards.md` (DOCS-4542).",
+        "Security attested Gatehouse groups tied to overview remained least-privilege after the `eu-central` audit (DOCS-3491).",
+        "**Design:** Color palette, refresh intervals, ownership tags. Teams document exceptions in Jira with Security review when Harbor access patterns change.",
+        "**Quality:** SLO panels required for Tier-1 dashboards. Teams document exceptions in Jira with Security review when Harbor access patterns change."
+      ],
+      "min_words": 650
+    },
+    {
+      "path": "analytics-platform/query_performance_guide.md",
+      "title": "Query Performance Guide",
+      "type": "handbook",
+      "owner": "Analytics Platform",
+      "owner_contact": "analytics@acmecloud.io",
+      "related_systems": [
+        "Atlas",
+        "Beacon",
+        "Ledger",
+        "Gatehouse",
+        "Harbor"
+      ],
+      "related_documents": [
+        "analytics_platform_overview.md",
+        "data-platform/data_platform_overview.md",
+        "sre/capacity_planning.md"
+      ],
+      "required_facts": [
+        "Query Performance Guide is the Analytics Platform reference for how teams build, ship, and operate software at AcmeCloud.",
+        "It complements platform runbooks and applies to engineers working with Harbor, Atlas, Beacon across all regional cells.",
+        "New hires complete LMS training modules referencing `analytics-platform/query_performance_guide.md` before receiving Gatehouse production elevation.",
+        "Analytics Platform validated overview on Harbor in `eu-central` during the Q1 game day; notes in DOCS-2795.",
+        "FinOps correlated Harbor usage with Ledger exports when reviewing overview for `analytics-platform/query_performance_guide.md` (DOCS-7389).",
+        "Security attested Gatehouse groups tied to overview remained least-privilege after the `eu-central` audit (DOCS-6944).",
+        "**Tuning:** Partition pruning, materialized views, query hints. Teams document exceptions in Jira with Security review when Harbor access patterns change.",
+        "**Incidents:** Escalate slow queries via support matrix. Teams document exceptions in Jira with Security review when Harbor access patterns change."
+      ],
+      "min_words": 650
+    },
+    {
+      "path": "analytics-platform/self_serve_sql_policy.md",
+      "title": "Self-Serve SQL Policy",
+      "type": "handbook",
+      "owner": "Analytics Platform",
+      "owner_contact": "analytics@acmecloud.io",
+      "related_systems": [
+        "Atlas",
+        "Beacon",
+        "Ledger",
+        "Gatehouse",
+        "Harbor"
+      ],
+      "related_documents": [
+        "semantic_layer.md",
+        "security/data_classification.md",
+        "data-platform/workspace_isolation.md"
+      ],
+      "required_facts": [
+        "Self-Serve SQL Policy is the Analytics Platform reference for how teams build, ship, and operate software at AcmeCloud.",
+        "It complements platform runbooks and applies to engineers working with Harbor, Atlas, Beacon across all regional cells.",
+        "New hires complete LMS training modules referencing `analytics-platform/self_serve_sql_policy.md` before receiving Gatehouse production elevation.",
+        "Analytics Platform validated overview on Harbor in `us-west` during the Q1 game day; notes in DOCS-9147.",
+        "FinOps correlated Harbor usage with Ledger exports when reviewing overview for `analytics-platform/self_serve_sql_policy.md` (DOCS-8080).",
+        "Security attested Gatehouse groups tied to overview remained least-privilege after the `us-west` audit (DOCS-6309).",
+        "**Access:** Gatehouse groups gate SQL workspaces. Teams document exceptions in Jira with Security review when Harbor access patterns change.",
+        "**Guardrails:** Row limits, cost caps via Ledger metering. Teams document exceptions in Jira with Security review when Harbor access patterns change."
+      ],
+      "min_words": 650
+    },
+    {
+      "path": "analytics-platform/semantic_layer.md",
+      "title": "Semantic Layer",
+      "type": "handbook",
+      "owner": "Analytics Platform",
+      "owner_contact": "analytics@acmecloud.io",
+      "related_systems": [
+        "Atlas",
+        "Beacon",
+        "Ledger",
+        "Gatehouse",
+        "Harbor"
+      ],
+      "related_documents": [
+        "analytics_platform_overview.md",
+        "dashboard_standards.md",
+        "data-platform/schema_registry.md"
+      ],
+      "required_facts": [
+        "Semantic Layer is the Analytics Platform reference for how teams build, ship, and operate software at AcmeCloud.",
+        "It complements platform runbooks and applies to engineers working with Harbor, Atlas, Beacon across all regional cells.",
+        "New hires complete LMS training modules referencing `analytics-platform/semantic_layer.md` before receiving Gatehouse production elevation.",
+        "Analytics Platform validated overview on Harbor in `us-east` during the Q1 game day; notes in DOCS-1023.",
+        "FinOps correlated Harbor usage with Ledger exports when reviewing overview for `analytics-platform/semantic_layer.md` (DOCS-7182).",
+        "Security attested Gatehouse groups tied to overview remained least-privilege after the `us-east` audit (DOCS-9268).",
+        "**Models:** Metrics definitions, dimensions, and governed joins. Teams document exceptions in Jira with Security review when Harbor access patterns change.",
+        "**Governance:** PR review for metric changes. Teams document exceptions in Jira with Security review when Harbor access patterns change."
+      ],
+      "min_words": 650
+    },
+    {
+      "path": "company/company_overview.md",
+      "title": "AcmeCloud Analytics Company Overview",
+      "type": "company_profile",
+      "owner": "Company",
+      "owner_contact": "hello@acmecloud.io",
+      "related_systems": [
+        "Atlas",
+        "Beacon",
+        "Mercury",
+        "Orion",
+        "Ledger",
+        "Gatehouse",
+        "Harbor"
+      ],
+      "related_documents": [
+        "product_portfolio.md",
+        "org_structure.md",
+        "policies/onboarding_policy.md",
+        "policies/code_of_conduct.md"
+      ],
+      "required_facts": [
+        "AcmeCloud Analytics is a B2B SaaS company founded in 2018 in Denver with approximately 500 employees building unified cloud analytics.",
+        "Mission: help data teams move from raw events to trusted insights and production AI without fragmented infrastructure.",
+        "Four customer-facing platforms: AcmeCloud Data Lake, Insights, AI Studio, and Observe share Atlas tenancy and Gatehouse ACLs.",
+        "Primary customer segments include mid-market SaaS, retail analytics, and enterprise data platform teams.",
+        "Remote-first operating model across US and EU with HQ in Denver and production cells in us-east, us-west, and eu-central.",
+        "Internal platform codenames (Atlas, Beacon, Mercury, Orion, Ledger, Gatehouse, Harbor) are defined in the company glossary.",
+        "New hires start with this page, org structure, and onboarding policy before receiving Gatehouse production access.",
+        "Documentation spans department overviews, RFCs, postmortems, policies, and procedures indexed in knowledge/README.md."
+      ],
+      "min_words": 820
+    },
+    {
+      "path": "company/glossary.md",
+      "title": "AcmeCloud Internal Systems Glossary",
+      "type": "glossary",
+      "owner": "Technical Writing",
+      "owner_contact": "docs@acmecloud.io",
+      "related_systems": [
+        "Atlas",
+        "Beacon",
+        "Mercury",
+        "Orion",
+        "Ledger",
+        "Gatehouse",
+        "Harbor"
+      ],
+      "related_documents": [
+        "product_portfolio.md",
+        "company_overview.md",
+        "data-platform/data_platform_overview.md"
+      ],
+      "required_facts": [
+        "This glossary is the authoritative reference for internal platform codenames and shared domain vocabulary at AcmeCloud Analytics (~500 employees, Denver HQ, remote-first US/EU).",
+        "RFCs, postmortems, and runbooks must link here on first mention of a codename. Customer-facing names (AcmeCloud Data Lake, Insights, AI Studio, Observe) remain external brands.",
+        "**Atlas** — control plane for tenant provisioning, cell routing (`us-east`, `us-west`, `eu-central`), platform configuration, and deployment orchestration.",
+        "Primary owners: Engineering and SRE. Authoritative ops doc: Deployment Runbook.",
+        "Atlas exposes APIs used by the console, CI promote hooks, and emergency change workflows during incidents.",
+        "Feature flags and cell routing tables live in Atlas; misconfiguration caused the eu-central outage documented in February 2025 postmortem.",
+        "**Beacon** — observability ingestion pipeline for metrics, logs, and distributed traces before indexing and alert evaluation.",
+        "Owner: Observability Platform. See Observability Platform Overview and RFC-003."
+      ],
+      "min_words": 704
+    },
+    {
+      "path": "company/org_structure.md",
+      "title": "Organizational Structure",
+      "type": "organization",
+      "owner": "HR",
+      "owner_contact": "people-ops@acmecloud.io",
+      "related_systems": [
+        "Atlas",
+        "Ledger",
+        "Gatehouse"
+      ],
+      "related_documents": [
+        "company_overview.md",
+        "hr/pto_and_leave.md",
+        "engineering/engineering_handbook.md"
+      ],
+      "required_facts": [
+        "Executive leadership: CEO Jordan Ellis, CFO Priya Menon, CTO Sam Okonkwo, CPO Elena Vasquez.",
+        "Engineering (~180) spans Data Platform, Analytics Platform, AI Platform, Observability, and shared SRE.",
+        "Go-to-Market (~120) includes Sales, Marketing, and Customer Success aligned to four product pillars.",
+        "Corporate functions (~100) cover Finance, HR, Legal, and IT with Gatehouse-integrated joiner/leaver workflows.",
+        "Approximate headcount: Engineering 180, GTM 120, Product 40, Support 60, G&A 100.",
+        "Remote-first across US and EU; HQ in Denver with quarterly in-person engineering summits.",
+        "Org chart updates require People Ops approval and Gatehouse group remapping within five business days.",
+        "See company overview and PTO policy for location and remote work expectations."
+      ],
+      "min_words": 767
+    },
+    {
+      "path": "company/product_portfolio.md",
+      "title": "AcmeCloud Product Portfolio",
+      "type": "product_portfolio",
+      "owner": "Product",
+      "owner_contact": "product@acmecloud.io",
+      "related_systems": [
+        "Atlas",
+        "Beacon",
+        "Mercury",
+        "Orion",
+        "Ledger",
+        "Gatehouse",
+        "Harbor"
+      ],
+      "related_documents": [
+        "glossary.md",
+        "company_overview.md",
+        "finance/cloud_spend_governance.md"
+      ],
+      "required_facts": [
+        "Four integrated platforms share Atlas tenancy, Gatehouse ACLs, and Ledger consumption metering.",
+        "AcmeCloud Data Lake combines Harbor storage with Mercury streaming for data engineering workloads.",
+        "AcmeCloud Insights delivers governed SQL and dashboards via semantic layer and ClickHouse pools.",
+        "AcmeCloud AI Studio covers Orion inference, feature stores, and training pipelines with responsible AI review.",
+        "AcmeCloud Observe provides Beacon-based telemetry, SLO tracking, and alerting for platform operators.",
+        "Enterprise packages include dedicated cells, enhanced SLAs, and FinOps governance reviews.",
+        "Product roadmap themes link to RFCs and quarterly planning documented in roadmap planning.",
+        "Customer-facing brands must not expose internal codenames without glossary-approved mappings."
+      ],
+      "min_words": 965
+    },
+    {
+      "path": "data-platform/backfill_procedures.md",
+      "title": "Backfill Procedures",
+      "type": "runbook",
+      "owner": "Data Platform",
+      "owner_contact": "data-platform@acmecloud.io",
+      "related_systems": [
+        "Atlas",
+        "Beacon",
+        "Mercury",
+        "Orion",
+        "Ledger",
+        "Gatehouse",
+        "Harbor"
+      ],
+      "related_documents": [
+        "batch_pipeline_guide.md",
+        "postmortems/2025-09-17-schema-registry-failure.md",
+        "sre/change_management.md"
+      ],
+      "required_facts": [
+        "This runbook guides Data Platform engineers through `Backfill Procedures` for production systems (Harbor, Mercury, Gatehouse, Ledger).",
+        "Use during planned maintenance or incident mitigation when Harbor behavior must change under time pressure.",
+        "Data Platform validated purpose on Harbor in `eu-central` during the Q1 game day; notes in DOCS-6240.",
+        "Security attested Gatehouse groups tied to purpose remained least-privilege after the `us-east` audit (DOCS-3414).",
+        "Architecture review referenced purpose when approving the `us-west` Gatehouse change window (DOCS-5236).",
+        "Active Gatehouse session with `data-platform-backfill_procedures-write` group membership.",
+        "Change ticket DOCS-2251 or active incident bridge for emergency execution.",
+        "Beacon dashboards for Harbor open and recording baseline metrics for `eu-central`."
+      ],
+      "min_words": 650
+    },
+    {
+      "path": "data-platform/batch_pipeline_guide.md",
+      "title": "Batch Pipeline Guide",
+      "type": "handbook",
+      "owner": "Data Platform",
+      "owner_contact": "data-platform@acmecloud.io",
+      "related_systems": [
+        "Atlas",
+        "Mercury",
+        "Ledger",
+        "Gatehouse",
+        "Harbor"
+      ],
+      "related_documents": [
+        "ingestion_architecture.md",
+        "backfill_procedures.md",
+        "engineering/branching_and_release_strategy.md"
+      ],
+      "required_facts": [
+        "Batch Pipeline Guide is the Data Platform reference for how teams build, ship, and operate software at AcmeCloud.",
+        "It complements platform runbooks and applies to engineers working with Harbor, Mercury, Gatehouse, Ledger across all regional cells.",
+        "New hires complete LMS training modules referencing `data-platform/batch_pipeline_guide.md` before receiving Gatehouse production elevation.",
+        "Data Platform validated overview on Harbor in `us-east` during the Q1 game day; notes in DOCS-9175.",
+        "FinOps correlated Gatehouse usage with Ledger exports when reviewing overview for `data-platform/batch_pipeline_guide.md` (DOCS-4536).",
+        "Security attested Gatehouse groups tied to overview remained least-privilege after the `us-east` audit (DOCS-1461).",
+        "**Pipeline meaning:** ETL/ELT batch jobs into Harbor via scheduled Spark workflows. Teams document exceptions in Jira with Security review when Harbor access patterns change.",
+        "**Operations:** Backfill, partition management, data quality checks. Teams document exceptions in Jira with Security review when Harbor access patterns change."
+      ],
+      "min_words": 650
+    },
+    {
+      "path": "data-platform/data_lineage.md",
+      "title": "Data Lineage",
+      "type": "handbook",
+      "owner": "Data Platform",
+      "owner_contact": "data-platform@acmecloud.io",
+      "related_systems": [
+        "Atlas",
+        "Mercury",
+        "Ledger",
+        "Gatehouse",
+        "Harbor"
+      ],
+      "related_documents": [
+        "schema_registry.md",
+        "analytics-platform/analytics_platform_overview.md",
+        "security/data_classification.md"
+      ],
+      "required_facts": [
+        "Data Lineage is the Data Platform reference for how teams build, ship, and operate software at AcmeCloud.",
+        "It complements platform runbooks and applies to engineers working with Harbor, Mercury, Gatehouse, Ledger across all regional cells.",
+        "New hires complete LMS training modules referencing `data-platform/data_lineage.md` before receiving Gatehouse production elevation.",
+        "Data Platform validated overview on Harbor in `eu-central` during the Q1 game day; notes in DOCS-9650.",
+        "FinOps correlated Gatehouse usage with Ledger exports when reviewing overview for `data-platform/data_lineage.md` (DOCS-3572).",
+        "Security attested Gatehouse groups tied to overview remained least-privilege after the `eu-central` audit (DOCS-2526).",
+        "**Tracking:** Lineage from Mercury and batch jobs through Harbor to Insights. Teams document exceptions in Jira with Security review when Harbor access patterns change.",
+        "**Tools:** Internal lineage graph integrated with Atlas metadata. Teams document exceptions in Jira with Security review when Harbor access patterns change."
+      ],
+      "min_words": 650
+    },
+    {
+      "path": "data-platform/data_platform_overview.md",
+      "title": "Data Platform Overview",
+      "type": "architecture",
+      "owner": "Data Platform",
+      "owner_contact": "data-platform@acmecloud.io",
+      "related_systems": [
+        "Atlas",
+        "Beacon",
+        "Mercury",
+        "Ledger",
+        "Gatehouse",
+        "Harbor"
+      ],
+      "related_documents": [
+        "ingestion_architecture.md",
+        "rfcs/rfc_004_multi_region_cells.md",
+        "postmortems/2025-09-17-schema-registry-failure.md"
+      ],
+      "required_facts": [
+        "Data Platform Overview documents how AcmeCloud's Data Platform organization designs, deploys, and operates the platform services behind customer-facing products.",
+        "This architecture spans regional cells (`us-east`, `us-west`, `eu-central`) and integrates with internal systems: Harbor, Mercury, Gatehouse, Ledger.",
+        "Data Platform validated overview on Harbor in `us-east` during the Q1 game day; notes in DOCS-8837.",
+        "Architecture review referenced overview when approving the `us-east` Mercury change window (DOCS-4914).",
+        "SRE paired with Data Platform on a Gatehouse rollback drill covering overview scenarios in `us-east` (DOCS-1728).",
+        "Security attested Gatehouse groups tied to overview remained least-privilege after the `us-east` audit (DOCS-6472).",
+        "Core components include Harbor, Mercury, Gatehouse, Ledger, each with distinct ownership boundaries and SLO dashboards in Beacon.",
+        "For **Harbor**, Harbor (data lake storage layer) stores Iceberg tables with partition policies and replication. On-call engineers cross-check Harbor metrics against Atlas routing tables in `us-east` and document outcomes in the Data Platform Confluence space."
+      ],
+      "min_words": 992
+    },
+    {
+      "path": "data-platform/data_quality_framework.md",
+      "title": "Data Quality Framework",
+      "type": "handbook",
+      "owner": "Data Platform",
+      "owner_contact": "data-platform@acmecloud.io",
+      "related_systems": [
+        "Atlas",
+        "Beacon",
+        "Mercury",
+        "Ledger",
+        "Gatehouse",
+        "Harbor"
+      ],
+      "related_documents": [
+        "sla_and_freshness.md",
+        "batch_pipeline_guide.md",
+        "analytics-platform/semantic_layer.md"
+      ],
+      "required_facts": [
+        "Data Quality Framework is the Data Platform reference for how teams build, ship, and operate software at AcmeCloud.",
+        "It complements platform runbooks and applies to engineers working with Harbor, Mercury, Gatehouse, Ledger across all regional cells.",
+        "New hires complete LMS training modules referencing `data-platform/data_quality_framework.md` before receiving Gatehouse production elevation.",
+        "Data Platform validated overview on Harbor in `us-east` during the Q1 game day; notes in DOCS-3455.",
+        "FinOps correlated Gatehouse usage with Ledger exports when reviewing overview for `data-platform/data_quality_framework.md` (DOCS-3731).",
+        "Security attested Gatehouse groups tied to overview remained least-privilege after the `us-east` audit (DOCS-2296).",
+        "**Checks:** Freshness, completeness, uniqueness monitors on Harbor datasets. Teams document exceptions in Jira with Security review when Harbor access patterns change.",
+        "**Alerts:** Beacon alerts route to data on-call. Teams document exceptions in Jira with Security review when Harbor access patterns change."
+      ],
+      "min_words": 650
+    },
+    {
+      "path": "data-platform/ingestion_architecture.md",
+      "title": "Ingestion Architecture",
+      "type": "architecture",
+      "owner": "Data Platform",
+      "owner_contact": "data-platform@acmecloud.io",
+      "related_systems": [
+        "Atlas",
+        "Beacon",
+        "Mercury",
+        "Ledger",
+        "Gatehouse",
+        "Harbor"
+      ],
+      "related_documents": [
+        "data_platform_overview.md",
+        "streaming_pipeline_guide.md",
+        "rfcs/rfc_006_kafka_to_mercury_migration.md"
+      ],
+      "required_facts": [
+        "Ingestion Architecture documents how AcmeCloud's Data Platform organization designs, deploys, and operates the platform services behind customer-facing products.",
+        "This architecture spans regional cells (`us-east`, `us-west`, `eu-central`) and integrates with internal systems: Harbor, Mercury, Gatehouse, Ledger.",
+        "Data Platform validated overview on Harbor in `us-west` during the Q1 game day; notes in DOCS-9346.",
+        "Architecture review referenced overview when approving the `us-west` Mercury change window (DOCS-6651).",
+        "SRE paired with Data Platform on a Gatehouse rollback drill covering overview scenarios in `us-west` (DOCS-4042).",
+        "Security attested Gatehouse groups tied to overview remained least-privilege after the `us-west` audit (DOCS-2937).",
+        "Core components include Harbor, Mercury, Gatehouse, Ledger, each with distinct ownership boundaries and SLO dashboards in Beacon.",
+        "**Sources** at AcmeCloud: SDK, SFTP, CDC connectors into Mercury and batch loaders into Harbor. Security and Data Platform require Gatehouse ACL review when Harbor paths change; last formal audit referenced DOCS-8709."
+      ],
+      "min_words": 983
+    },
+    {
+      "path": "data-platform/schema_registry.md",
+      "title": "Schema Registry",
+      "type": "handbook",
+      "owner": "Data Platform",
+      "owner_contact": "data-platform@acmecloud.io",
+      "related_systems": [
+        "Atlas",
+        "Mercury",
+        "Ledger",
+        "Gatehouse",
+        "Harbor"
+      ],
+      "related_documents": [
+        "data_platform_overview.md",
+        "ai-platform/feature_store_guide.md",
+        "postmortems/2025-09-17-schema-registry-failure.md"
+      ],
+      "required_facts": [
+        "Schema Registry is the Data Platform reference for how teams build, ship, and operate software at AcmeCloud.",
+        "It complements platform runbooks and applies to engineers working with Harbor, Mercury, Gatehouse, Ledger across all regional cells.",
+        "New hires complete LMS training modules referencing `data-platform/schema_registry.md` before receiving Gatehouse production elevation.",
+        "Data Platform validated overview on Harbor in `eu-central` during the Q1 game day; notes in DOCS-8629.",
+        "FinOps correlated Gatehouse usage with Ledger exports when reviewing overview for `data-platform/schema_registry.md` (DOCS-2102).",
+        "Security attested Gatehouse groups tied to overview remained least-privilege after the `eu-central` audit (DOCS-9738).",
+        "**Governance:** Avro/Protobuf schemas versioned with compatibility checks. Teams document exceptions in Jira with Security review when Harbor access patterns change.",
+        "**Harbor:** Schemas gate writes to Harbor tables. Teams document exceptions in Jira with Security review when Harbor access patterns change."
+      ],
+      "min_words": 650
+    },
+    {
+      "path": "data-platform/sla_and_freshness.md",
+      "title": "SLA and Freshness",
+      "type": "handbook",
+      "owner": "Data Platform",
+      "owner_contact": "data-platform@acmecloud.io",
+      "related_systems": [
+        "Atlas",
+        "Beacon",
+        "Mercury",
+        "Ledger",
+        "Gatehouse",
+        "Harbor"
+      ],
+      "related_documents": [
+        "data_quality_framework.md",
+        "support/support_slas.md",
+        "observability-platform/slo_framework.md"
+      ],
+      "required_facts": [
+        "SLA and Freshness is the Data Platform reference for how teams build, ship, and operate software at AcmeCloud.",
+        "It complements platform runbooks and applies to engineers working with Harbor, Mercury, Gatehouse, Ledger across all regional cells.",
+        "New hires complete LMS training modules referencing `data-platform/sla_and_freshness.md` before receiving Gatehouse production elevation.",
+        "Data Platform validated overview on Harbor in `us-east` during the Q1 game day; notes in DOCS-5067.",
+        "FinOps correlated Gatehouse usage with Ledger exports when reviewing overview for `data-platform/sla_and_freshness.md` (DOCS-7658).",
+        "Security attested Gatehouse groups tied to overview remained least-privilege after the `us-east` audit (DOCS-9176).",
+        "**SLA:** Internal freshness SLOs distinct from customer support SLAs. Teams document exceptions in Jira with Security review when Harbor access patterns change.",
+        "**Measurement:** Beacon tracks pipeline lag into Harbor. Teams document exceptions in Jira with Security review when Harbor access patterns change."
+      ],
+      "min_words": 650
+    },
+    {
+      "path": "data-platform/streaming_pipeline_guide.md",
+      "title": "Streaming Pipeline Guide",
+      "type": "handbook",
+      "owner": "Data Platform",
+      "owner_contact": "data-platform@acmecloud.io",
+      "related_systems": [
+        "Atlas",
+        "Mercury",
+        "Ledger",
+        "Gatehouse",
+        "Harbor"
+      ],
+      "related_documents": [
+        "ingestion_architecture.md",
+        "rfcs/rfc_006_kafka_to_mercury_migration.md",
+        "postmortems/2025-02-14-eu-central-outage.md"
+      ],
+      "required_facts": [
+        "Streaming Pipeline Guide is the Data Platform reference for how teams build, ship, and operate software at AcmeCloud.",
+        "It complements platform runbooks and applies to engineers working with Harbor, Mercury, Gatehouse, Ledger across all regional cells.",
+        "New hires complete LMS training modules referencing `data-platform/streaming_pipeline_guide.md` before receiving Gatehouse production elevation.",
+        "Data Platform validated overview on Harbor in `eu-central` during the Q1 game day; notes in DOCS-2353.",
+        "FinOps correlated Gatehouse usage with Ledger exports when reviewing overview for `data-platform/streaming_pipeline_guide.md` (DOCS-2163).",
+        "Security attested Gatehouse groups tied to overview remained least-privilege after the `eu-central` audit (DOCS-6626).",
+        "**Mercury:** Mercury streaming jobs replace legacy Kafka paths per cell. Teams document exceptions in Jira with Security review when Harbor access patterns change.",
+        "**RFC-006:** RFC-006 Kafka migration is superseded by this guide and RFC-004 cell-local Mercury. Teams document exceptions in Jira with Security review when Harbor access patterns change."
+      ],
+      "min_words": 650
+    },
+    {
+      "path": "data-platform/workspace_isolation.md",
+      "title": "Workspace Isolation",
+      "type": "handbook",
+      "owner": "Data Platform",
+      "owner_contact": "data-platform@acmecloud.io",
+      "related_systems": [
+        "Atlas",
+        "Mercury",
+        "Ledger",
+        "Gatehouse",
+        "Harbor"
+      ],
+      "related_documents": [
+        "security/access_management.md",
+        "procedures/data_access_request.md",
+        "data_platform_overview.md"
+      ],
+      "required_facts": [
+        "Workspace Isolation is the Data Platform reference for how teams build, ship, and operate software at AcmeCloud.",
+        "It complements platform runbooks and applies to engineers working with Harbor, Mercury, Gatehouse, Ledger across all regional cells.",
+        "New hires complete LMS training modules referencing `data-platform/workspace_isolation.md` before receiving Gatehouse production elevation.",
+        "Data Platform validated overview on Harbor in `us-west` during the Q1 game day; notes in DOCS-7906.",
+        "FinOps correlated Gatehouse usage with Ledger exports when reviewing overview for `data-platform/workspace_isolation.md` (DOCS-6835).",
+        "Security attested Gatehouse groups tied to overview remained least-privilege after the `us-west` audit (DOCS-4250).",
+        "**Tenants:** Tenant/workspace boundaries enforced by Gatehouse and Harbor ACLs. Teams document exceptions in Jira with Security review when Harbor access patterns change.",
+        "**Cross-workspace:** Denied by default; break-glass requires Security approval. Teams document exceptions in Jira with Security review when Harbor access patterns change."
+      ],
+      "min_words": 650
+    },
+    {
+      "path": "engineering/branching_and_release_strategy.md",
+      "title": "Branching and Release Strategy",
+      "type": "handbook",
+      "owner": "Engineering",
+      "owner_contact": "engineering@acmecloud.io",
+      "related_systems": [
+        "Atlas",
+        "Ledger",
+        "Gatehouse"
+      ],
+      "related_documents": [
+        "sre/deployment_runbook.md",
+        "data-platform/batch_pipeline_guide.md",
+        "code_review_guidelines.md"
+      ],
+      "required_facts": [
+        "Branching and Release Strategy is the Engineering reference for how teams build, ship, and operate software at AcmeCloud.",
+        "It complements platform runbooks and applies to engineers working with Atlas, Gatehouse across all regional cells.",
+        "New hires complete LMS training modules referencing `engineering/branching_and_release_strategy.md` before receiving Gatehouse production elevation.",
+        "Engineering validated overview on Atlas in `eu-central` during the Q1 game day; notes in DOCS-6113.",
+        "FinOps correlated Atlas usage with Ledger exports when reviewing overview for `engineering/branching_and_release_strategy.md` (DOCS-8625).",
+        "Security attested Gatehouse groups tied to overview remained least-privilege after the `eu-central` audit (DOCS-2645).",
+        "SRE paired with Engineering on a Atlas rollback drill covering overview scenarios in `eu-central` (DOCS-7686).",
+        "**Pipeline meaning:** CI/CD release pipeline via Atlas promotes artifacts to cells. Teams document exceptions in Jira with Security review when Atlas access patterns change."
+      ],
+      "min_words": 650
+    },
+    {
+      "path": "engineering/code_review_guidelines.md",
+      "title": "Code Review Guidelines",
+      "type": "handbook",
+      "owner": "Engineering",
+      "owner_contact": "engineering@acmecloud.io",
+      "related_systems": [
+        "Atlas",
+        "Ledger",
+        "Gatehouse"
+      ],
+      "related_documents": [
+        "sdlc_overview.md",
+        "security/secrets_management.md",
+        "branching_and_release_strategy.md"
+      ],
+      "required_facts": [
+        "Code Review Guidelines is the Engineering reference for how teams build, ship, and operate software at AcmeCloud.",
+        "It complements platform runbooks and applies to engineers working with Atlas, Gatehouse across all regional cells.",
+        "New hires complete LMS training modules referencing `engineering/code_review_guidelines.md` before receiving Gatehouse production elevation.",
+        "Engineering validated overview on Atlas in `us-east` during the Q1 game day; notes in DOCS-1134.",
+        "FinOps correlated Atlas usage with Ledger exports when reviewing overview for `engineering/code_review_guidelines.md` (DOCS-6448).",
+        "Security attested Gatehouse groups tied to overview remained least-privilege after the `us-east` audit (DOCS-6638).",
+        "SRE paired with Engineering on a Atlas rollback drill covering overview scenarios in `us-east` (DOCS-8783).",
+        "**Expectations:** Two approvals for production paths; one for docs. Teams document exceptions in Jira with Security review when Atlas access patterns change."
+      ],
+      "min_words": 650
+    },
+    {
+      "path": "engineering/engineering_handbook.md",
+      "title": "Engineering Handbook",
+      "type": "handbook",
+      "owner": "Engineering",
+      "owner_contact": "engineering@acmecloud.io",
+      "related_systems": [
+        "Atlas",
+        "Ledger",
+        "Gatehouse"
+      ],
+      "related_documents": [
+        "company/glossary.md",
+        "sdlc_overview.md",
+        "sre/service_tiers.md"
+      ],
+      "required_facts": [
+        "Engineering Handbook is the Engineering reference for how teams build, ship, and operate software at AcmeCloud.",
+        "It complements platform runbooks and applies to engineers working with Atlas, Gatehouse across all regional cells.",
+        "New hires complete LMS training modules referencing `engineering/engineering_handbook.md` before receiving Gatehouse production elevation.",
+        "Engineering validated overview on Atlas in `us-east` during the Q1 game day; notes in DOCS-5782.",
+        "FinOps correlated Atlas usage with Ledger exports when reviewing overview for `engineering/engineering_handbook.md` (DOCS-2126).",
+        "Security attested Gatehouse groups tied to overview remained least-privilege after the `us-east` audit (DOCS-1175).",
+        "SRE paired with Engineering on a Atlas rollback drill covering overview scenarios in `us-east` (DOCS-7548).",
+        "**Culture:** Documentation-first, code review required, blameless postmortems. Teams document exceptions in Jira with Security review when Atlas access patterns change."
+      ],
+      "min_words": 650
+    },
+    {
+      "path": "engineering/sdlc_overview.md",
+      "title": "SDLC Overview",
+      "type": "architecture",
+      "owner": "Engineering",
+      "owner_contact": "engineering@acmecloud.io",
+      "related_systems": [
+        "Atlas",
+        "Beacon",
+        "Ledger",
+        "Gatehouse"
+      ],
+      "related_documents": [
+        "engineering_handbook.md",
+        "testing_strategy.md",
+        "product/product_development_lifecycle.md"
+      ],
+      "required_facts": [
+        "SDLC Overview documents how AcmeCloud's Engineering organization designs, deploys, and operates the platform services behind customer-facing products.",
+        "This architecture spans regional cells (`us-east`, `us-west`, `eu-central`) and integrates with internal systems: Atlas, Gatehouse.",
+        "Engineering validated overview on Atlas in `us-west` during the Q1 game day; notes in DOCS-1373.",
+        "Architecture review referenced overview when approving the `us-west` Gatehouse change window (DOCS-2450).",
+        "Core components include Atlas, Gatehouse, each with distinct ownership boundaries and SLO dashboards in Beacon.",
+        "**Phases** at AcmeCloud: Design, implement, test, deploy, operate. Security and Engineering require Gatehouse ACL review when Atlas paths change; last formal audit referenced DOCS-8701.",
+        "Regarding **Quality gates**: Unit tests, integration tests, security scan. Cell `eu-central` runs staged validation on Gatehouse before Atlas promotes configuration; rollback steps must be attached to DOCS-4745.",
+        "FinOps correlated Gatehouse usage with Ledger exports when reviewing system components for `engineering/sdlc_overview.md` (DOCS-4766)."
+      ],
+      "min_words": 650
+    },
+    {
+      "path": "engineering/service_tiers.md",
+      "title": "Service Tier Definitions",
+      "type": "handbook",
+      "owner": "Engineering",
+      "owner_contact": "platform-arch@acmecloud.io",
+      "related_systems": [
+        "Atlas",
+        "Beacon",
+        "Mercury",
+        "Orion",
+        "Ledger",
+        "Gatehouse",
+        "Harbor"
+      ],
+      "related_documents": [
+        "sre/oncall_policy.md",
+        "observability-platform/slo_framework.md",
+        "engineering_handbook.md"
+      ],
+      "required_facts": [
+        "Service Tier Definitions is the Engineering reference for how teams build, ship, and operate software at AcmeCloud.",
+        "It complements platform runbooks and applies to engineers working with Atlas, Gatehouse across all regional cells.",
+        "New hires complete LMS training modules referencing `engineering/service_tiers.md` before receiving Gatehouse production elevation.",
+        "Engineering validated overview on Atlas in `eu-central` during the Q1 game day; notes in DOCS-7305.",
+        "FinOps correlated Atlas usage with Ledger exports when reviewing overview for `engineering/service_tiers.md` (DOCS-4255).",
+        "Security attested Gatehouse groups tied to overview remained least-privilege after the `eu-central` audit (DOCS-7014).",
+        "**Tiers:** Tier 0 Atlas/Gatehouse; Tier 1 Harbor/Mercury/Orion/Beacon; Tier 2 internal tools. Teams document exceptions in Jira with Security review when Atlas access patterns change.",
+        "**On-call:** Tier 0/1 require 24/7 paging. Teams document exceptions in Jira with Security review when Atlas access patterns change."
+      ],
+      "min_words": 650
+    },
+    {
+      "path": "engineering/testing_strategy.md",
+      "title": "Testing Strategy",
+      "type": "handbook",
+      "owner": "Engineering",
+      "owner_contact": "engineering@acmecloud.io",
+      "related_systems": [
+        "Atlas",
+        "Ledger",
+        "Gatehouse"
+      ],
+      "related_documents": [
+        "sdlc_overview.md",
+        "ai-platform/model_training_pipelines.md",
+        "data-platform/data_quality_framework.md"
+      ],
+      "required_facts": [
+        "Testing Strategy is the Engineering reference for how teams build, ship, and operate software at AcmeCloud.",
+        "It complements platform runbooks and applies to engineers working with Atlas, Gatehouse across all regional cells.",
+        "New hires complete LMS training modules referencing `engineering/testing_strategy.md` before receiving Gatehouse production elevation.",
+        "Engineering validated overview on Atlas in `us-west` during the Q1 game day; notes in DOCS-4899.",
+        "FinOps correlated Atlas usage with Ledger exports when reviewing overview for `engineering/testing_strategy.md` (DOCS-7667).",
+        "Security attested Gatehouse groups tied to overview remained least-privilege after the `us-west` audit (DOCS-7481).",
+        "SRE paired with Engineering on a Atlas rollback drill covering overview scenarios in `us-west` (DOCS-2695).",
+        "**Pyramid:** Unit, contract, integration, smoke. Teams document exceptions in Jira with Security review when Atlas access patterns change."
+      ],
+      "min_words": 650
+    },
+    {
+      "path": "finance/budget_planning.md",
+      "title": "Budget Planning",
+      "type": "finance_process",
+      "owner": "Finance",
+      "owner_contact": "finance@acmecloud.io",
+      "related_systems": [
+        "Atlas",
+        "Ledger",
+        "Gatehouse"
+      ],
+      "related_documents": [
+        "procurement_policy.md",
+        "cloud_spend_governance.md",
+        "company/org_structure.md"
+      ],
+      "required_facts": [
+        "Annual budget cycle starts in October; department submissions due mid-November with executive finalization in December.",
+        "Department heads submit headcount, cloud, and vendor forecasts with Ledger trend attachments from FinOps.",
+        "Finance consolidates submissions, applies corporate allocations, and flags variances above 20% from prior year.",
+        "CFO presents consolidated budget to CEO and board; approved targets publish to department VPs in January.",
+        "Quarterly reforecast updates cloud and vendor actuals; departments explain variances over 10%.",
+        "Ledger meters feed actuals for compute, storage, and inference into budget models automatically.",
+        "Mid-year material changes require reforecast approval documented in Jira with Finance sign-off.",
+        "Procurement policy thresholds apply to vendor spend included in departmental budgets."
+      ],
+      "min_words": 650
+    },
+    {
+      "path": "finance/cloud_spend_governance.md",
+      "title": "Cloud Spend Governance",
+      "type": "finance_operations",
+      "owner": "Finance",
+      "owner_contact": "finops@acmecloud.io",
+      "related_systems": [
+        "Atlas",
+        "Ledger",
+        "Gatehouse"
+      ],
+      "related_documents": [
+        "company/product_portfolio.md",
+        "sre/capacity_planning.md",
+        "data-platform/data_platform_overview.md"
+      ],
+      "required_facts": [
+        "FinOps partners with Engineering and Finance to optimize cloud unit economics without compromising reliability.",
+        "Ledger provides workspace-level meters for Atlas, Harbor, Orion, and Mercury workloads with weekly spend reports.",
+        "Soft budget alerts fire at 80% of monthly allocation; hard throttles require VP approval via Jira.",
+        "FinOps investigates when daily spend exceeds 130% of trailing seven-day average within one business day.",
+        "Internal chargeback allocates shared platform costs by Ledger consumption with 5% G&A overhead.",
+        "Monthly FinOps council reviews top accounts, savings initiatives, and anomaly root causes.",
+        "Tier-0 services remain exempt from automated throttles during active SEV-1 incidents.",
+        "Product P&L reviews use chargeback exports in quarterly business reviews with Finance."
+      ],
+      "min_words": 650
+    },
+    {
+      "path": "finance/procurement_policy.md",
+      "title": "Procurement Policy",
+      "type": "finance_policy",
+      "owner": "Finance",
+      "owner_contact": "procurement@acmecloud.io",
+      "related_systems": [
+        "Atlas",
+        "Ledger",
+        "Gatehouse"
+      ],
+      "related_documents": [
+        "security/vendor_security_review.md",
+        "budget_planning.md",
+        "policies/expense_policy.md"
+      ],
+      "required_facts": [
+        "Purchase order required for transactions over $1,000 USD; capital purchases over $25,000 require CFO approval.",
+        "Requester submits Jira procurement ticket with business justification, budget code, and manager approval chain.",
+        "Manager approval up to $10,000; Director up to $50,000; VP/CFO above that threshold.",
+        "New vendors complete vendor security review and Legal DPA sign-off before contract execution.",
+        "Vendors handling customer data must meet data classification requirements and SOC 2 evidence collection.",
+        "Emergency purchases during SEV-1 may proceed with verbal VP approval and retroactive PO within 48 hours.",
+        "Finance retains POs, approval records, and security questionnaires for seven years for audit.",
+        "SaaS renewals affecting production systems attach Ledger usage reports and Gatehouse access scope."
+      ],
+      "min_words": 650
+    },
+    {
+      "path": "hr/offboarding_checklist.md",
+      "title": "Offboarding Checklist",
+      "type": "handbook",
+      "owner": "HR",
+      "owner_contact": "people-ops@acmecloud.io",
+      "related_systems": [
+        "Atlas",
+        "Ledger",
+        "Gatehouse"
+      ],
+      "related_documents": [
+        "procedures/access_provisioning.md",
+        "policies/equipment_policy.md",
+        "policies/security_policy.md"
+      ],
+      "required_facts": [
+        "Offboarding Checklist is the HR reference for how teams build, ship, and operate software at AcmeCloud.",
+        "It complements platform runbooks and applies to engineers working with Atlas across all regional cells.",
+        "New hires complete LMS training modules referencing `hr/offboarding_checklist.md` before receiving Gatehouse production elevation.",
+        "HR validated overview on Atlas in `us-east` during the Q1 game day; notes in DOCS-3711.",
+        "FinOps correlated Atlas usage with Ledger exports when reviewing overview for `hr/offboarding_checklist.md` (DOCS-9115).",
+        "Security attested Gatehouse groups tied to overview remained least-privilege after the `us-east` audit (DOCS-7546).",
+        "SRE paired with HR on a Atlas rollback drill covering overview scenarios in `us-east` (DOCS-2486).",
+        "**Access:** Triggers access_provisioning Gatehouse revocation within 1 hour. Teams document exceptions in Jira with Security review when Atlas access patterns change."
+      ],
+      "min_words": 650
+    },
+    {
+      "path": "hr/performance_review_cycle.md",
+      "title": "Performance Review Cycle",
+      "type": "handbook",
+      "owner": "HR",
+      "owner_contact": "people-ops@acmecloud.io",
+      "related_systems": [
+        "Atlas",
+        "Ledger",
+        "Gatehouse"
+      ],
+      "related_documents": [
+        "policies/code_of_conduct.md",
+        "pto_and_leave.md",
+        "company/org_structure.md"
+      ],
+      "required_facts": [
+        "Performance Review Cycle is the HR reference for how teams build, ship, and operate software at AcmeCloud.",
+        "It complements platform runbooks and applies to engineers working with Atlas across all regional cells.",
+        "New hires complete LMS training modules referencing `hr/performance_review_cycle.md` before receiving Gatehouse production elevation.",
+        "HR validated overview on Atlas in `us-east` during the Q1 game day; notes in DOCS-7373.",
+        "FinOps correlated Atlas usage with Ledger exports when reviewing overview for `hr/performance_review_cycle.md` (DOCS-3493).",
+        "Security attested Gatehouse groups tied to overview remained least-privilege after the `us-east` audit (DOCS-5255).",
+        "SRE paired with HR on a Atlas rollback drill covering overview scenarios in `us-east` (DOCS-2071).",
+        "**Cadence:** Bi-annual reviews in Q2 and Q4. Teams document exceptions in Jira with Security review when Atlas access patterns change."
+      ],
+      "min_words": 650
+    },
+    {
+      "path": "hr/pto_and_leave.md",
+      "title": "PTO and Leave",
+      "type": "handbook",
+      "owner": "HR",
+      "owner_contact": "people-ops@acmecloud.io",
+      "related_systems": [
+        "Atlas",
+        "Ledger",
+        "Gatehouse"
+      ],
+      "related_documents": [
+        "policies/remote_work_policy.md",
+        "performance_review_cycle.md",
+        "policies/onboarding_policy.md"
+      ],
+      "required_facts": [
+        "PTO and Leave is the HR reference for how teams build, ship, and operate software at AcmeCloud.",
+        "It complements platform runbooks and applies to engineers working with Atlas across all regional cells.",
+        "New hires complete LMS training modules referencing `hr/pto_and_leave.md` before receiving Gatehouse production elevation.",
+        "HR validated overview on Atlas in `eu-central` during the Q1 game day; notes in DOCS-5923.",
+        "FinOps correlated Atlas usage with Ledger exports when reviewing overview for `hr/pto_and_leave.md` (DOCS-7106).",
+        "Security attested Gatehouse groups tied to overview remained least-privilege after the `eu-central` audit (DOCS-2043).",
+        "SRE paired with HR on a Atlas rollback drill covering overview scenarios in `eu-central` (DOCS-5646).",
+        "**PTO:** Flexible PTO with manager approval; minimum 15 days encouraged. Teams document exceptions in Jira with Security review when Atlas access patterns change."
+      ],
+      "min_words": 650
+    },
+    {
+      "path": "observability-platform/alerting_and_routing.md",
+      "title": "Alerting and Routing",
+      "type": "handbook",
+      "owner": "Observability Platform",
+      "owner_contact": "observe-platform@acmecloud.io",
+      "related_systems": [
+        "Atlas",
+        "Beacon",
+        "Ledger",
+        "Gatehouse"
+      ],
+      "related_documents": [
+        "sre/oncall_policy.md",
+        "procedures/incident_response.md",
+        "slo_framework.md"
+      ],
+      "required_facts": [
+        "Alerting and Routing is the Observability Platform reference for how teams build, ship, and operate software at AcmeCloud.",
+        "It complements platform runbooks and applies to engineers working with Beacon, Atlas across all regional cells.",
+        "New hires complete LMS training modules referencing `observability-platform/alerting_and_routing.md` before receiving Gatehouse production elevation.",
+        "Observability Platform validated overview on Beacon in `eu-central` during the Q1 game day; notes in DOCS-1549.",
+        "FinOps correlated Beacon usage with Ledger exports when reviewing overview for `observability-platform/alerting_and_routing.md` (DOCS-2088).",
+        "Security attested Gatehouse groups tied to overview remained least-privilege after the `eu-central` audit (DOCS-9386).",
+        "**Beacon routes:** Alert rules evaluate on Beacon streams; routes to PagerDuty on-call. Teams document exceptions in Jira with Security review when Beacon access patterns change.",
+        "**Incidents:** Links to incident_response.md first steps. Teams document exceptions in Jira with Security review when Beacon access patterns change."
+      ],
+      "min_words": 650
+    },
+    {
+      "path": "observability-platform/distributed_tracing.md",
+      "title": "Distributed Tracing",
+      "type": "handbook",
+      "owner": "Observability Platform",
+      "owner_contact": "observe-platform@acmecloud.io",
+      "related_systems": [
+        "Atlas",
+        "Beacon",
+        "Mercury",
+        "Orion",
+        "Ledger",
+        "Gatehouse"
+      ],
+      "related_documents": [
+        "observability_platform_overview.md",
+        "engineering/service_tiers.md",
+        "ai-platform/model_serving_runbook.md"
+      ],
+      "required_facts": [
+        "Distributed Tracing is the Observability Platform reference for how teams build, ship, and operate software at AcmeCloud.",
+        "It complements platform runbooks and applies to engineers working with Beacon, Atlas across all regional cells.",
+        "New hires complete LMS training modules referencing `observability-platform/distributed_tracing.md` before receiving Gatehouse production elevation.",
+        "Observability Platform validated overview on Beacon in `us-east` during the Q1 game day; notes in DOCS-5243.",
+        "FinOps correlated Beacon usage with Ledger exports when reviewing overview for `observability-platform/distributed_tracing.md` (DOCS-1233).",
+        "Security attested Gatehouse groups tied to overview remained least-privilege after the `us-east` audit (DOCS-2884).",
+        "**Propagation:** W3C trace context across Mercury, Orion, and APIs. Teams document exceptions in Jira with Security review when Beacon access patterns change.",
+        "**Beacon:** Trace intake shares Beacon ingestion pipeline. Teams document exceptions in Jira with Security review when Beacon access patterns change."
+      ],
+      "min_words": 650
+    },
+    {
+      "path": "observability-platform/logging_standards.md",
+      "title": "Logging Standards",
+      "type": "handbook",
+      "owner": "Observability Platform",
+      "owner_contact": "observe-platform@acmecloud.io",
+      "related_systems": [
+        "Atlas",
+        "Beacon",
+        "Ledger",
+        "Gatehouse"
+      ],
+      "related_documents": [
+        "metrics_collection.md",
+        "security/secrets_management.md",
+        "distributed_tracing.md"
+      ],
+      "required_facts": [
+        "Logging Standards is the Observability Platform reference for how teams build, ship, and operate software at AcmeCloud.",
+        "It complements platform runbooks and applies to engineers working with Beacon, Atlas across all regional cells.",
+        "New hires complete LMS training modules referencing `observability-platform/logging_standards.md` before receiving Gatehouse production elevation.",
+        "Observability Platform validated overview on Beacon in `us-west` during the Q1 game day; notes in DOCS-1775.",
+        "FinOps correlated Beacon usage with Ledger exports when reviewing overview for `observability-platform/logging_standards.md` (DOCS-9571).",
+        "Security attested Gatehouse groups tied to overview remained least-privilege after the `us-west` audit (DOCS-1226).",
+        "**Format:** Structured JSON with trace_id and tenant_id. Teams document exceptions in Jira with Security review when Beacon access patterns change.",
+        "**PII:** No secrets or PII in logs per security policy. Teams document exceptions in Jira with Security review when Beacon access patterns change."
+      ],
+      "min_words": 650
+    },
+    {
+      "path": "observability-platform/metrics_collection.md",
+      "title": "Metrics Collection",
+      "type": "handbook",
+      "owner": "Observability Platform",
+      "owner_contact": "observe-platform@acmecloud.io",
+      "related_systems": [
+        "Atlas",
+        "Beacon",
+        "Ledger",
+        "Gatehouse"
+      ],
+      "related_documents": [
+        "observability_platform_overview.md",
+        "alerting_and_routing.md",
+        "sre/oncall_policy.md"
+      ],
+      "required_facts": [
+        "Metrics Collection is the Observability Platform reference for how teams build, ship, and operate software at AcmeCloud.",
+        "It complements platform runbooks and applies to engineers working with Beacon, Atlas across all regional cells.",
+        "New hires complete LMS training modules referencing `observability-platform/metrics_collection.md` before receiving Gatehouse production elevation.",
+        "Observability Platform validated overview on Beacon in `eu-central` during the Q1 game day; notes in DOCS-8960.",
+        "FinOps correlated Beacon usage with Ledger exports when reviewing overview for `observability-platform/metrics_collection.md` (DOCS-5558).",
+        "Security attested Gatehouse groups tied to overview remained least-privilege after the `eu-central` audit (DOCS-2280).",
+        "**Beacon path:** Agents ship metrics to Beacon shards with cardinality controls. Teams document exceptions in Jira with Security review when Beacon access patterns change.",
+        "**Storage:** Downstream TSDB indexing after Beacon buffering. Teams document exceptions in Jira with Security review when Beacon access patterns change."
+      ],
+      "min_words": 650
+    },
+    {
+      "path": "observability-platform/observability_platform_overview.md",
+      "title": "Observability Platform Overview",
+      "type": "architecture",
+      "owner": "Observability Platform",
+      "owner_contact": "observe-platform@acmecloud.io",
+      "related_systems": [
+        "Atlas",
+        "Beacon",
+        "Ledger",
+        "Gatehouse"
+      ],
+      "related_documents": [
+        "metrics_collection.md",
+        "rfcs/rfc_003_observability_rework.md",
+        "postmortems/2025-11-03-observability-ingestion-delay.md"
+      ],
+      "required_facts": [
+        "Observability Platform Overview documents how AcmeCloud's Observability Platform organization designs, deploys, and operates the platform services behind customer-facing products.",
+        "This architecture spans regional cells (`us-east`, `us-west`, `eu-central`) and integrates with internal systems: Beacon, Atlas.",
+        "Observability Platform validated overview on Beacon in `us-east` during the Q1 game day; notes in DOCS-2787.",
+        "Architecture review referenced overview when approving the `us-east` Atlas change window (DOCS-3944).",
+        "SRE paired with Observability Platform on a Beacon rollback drill covering overview scenarios in `us-east` (DOCS-1626).",
+        "Security attested Gatehouse groups tied to overview remained least-privilege after the `us-east` audit (DOCS-7079).",
+        "Core components include Beacon, Atlas, each with distinct ownership boundaries and SLO dashboards in Beacon.",
+        "**Beacon** — Beacon ingests metrics, logs, and traces with Atlas tenant config. In production, Observability Platform validates this through Beacon dashboards in cell `us-east` before quarterly review; changes are tracked under DOCS-4486."
+      ],
+      "min_words": 985
+    },
+    {
+      "path": "observability-platform/slo_framework.md",
+      "title": "SLO Framework",
+      "type": "handbook",
+      "owner": "Observability Platform",
+      "owner_contact": "observe-platform@acmecloud.io",
+      "related_systems": [
+        "Atlas",
+        "Beacon",
+        "Ledger",
+        "Gatehouse"
+      ],
+      "related_documents": [
+        "sre/error_budget_policy.md",
+        "ai-platform/online_inference_slos.md",
+        "alerting_and_routing.md"
+      ],
+      "required_facts": [
+        "SLO Framework is the Observability Platform reference for how teams build, ship, and operate software at AcmeCloud.",
+        "It complements platform runbooks and applies to engineers working with Beacon, Atlas across all regional cells.",
+        "New hires complete LMS training modules referencing `observability-platform/slo_framework.md` before receiving Gatehouse production elevation.",
+        "Observability Platform validated overview on Beacon in `us-west` during the Q1 game day; notes in DOCS-7485.",
+        "FinOps correlated Beacon usage with Ledger exports when reviewing overview for `observability-platform/slo_framework.md` (DOCS-9171).",
+        "Security attested Gatehouse groups tied to overview remained least-privilege after the `us-west` audit (DOCS-8243).",
+        "**Definition:** SLOs defined in Beacon with error budget dashboards. Teams document exceptions in Jira with Security review when Beacon access patterns change.",
+        "**Review:** Monthly SLO review with service owners. Teams document exceptions in Jira with Security review when Beacon access patterns change."
+      ],
+      "min_words": 650
+    },
+    {
+      "path": "policies/acceptable_use_policy.md",
+      "title": "Acceptable Use Policy",
+      "type": "policy",
+      "owner": "Security",
+      "owner_contact": "security@acmecloud.io",
+      "related_systems": [
+        "Atlas",
+        "Ledger",
+        "Gatehouse"
+      ],
+      "related_documents": [
+        "security_policy.md",
+        "code_of_conduct.md",
+        "security/data_classification.md"
+      ],
+      "required_facts": [
+        "Acceptable Use Policy establishes mandatory requirements for Security stakeholders at AcmeCloud Analytics.",
+        "This policy supports consistent operations across Gatehouse-protected systems and regional cells.",
+        "Security validated purpose on Atlas in `us-west` during the Q1 game day; notes in DOCS-8171.",
+        "FinOps correlated Atlas usage with Ledger exports when reviewing purpose for `policies/acceptable_use_policy.md` (DOCS-1619).",
+        "Security attested Gatehouse groups tied to purpose remained least-privilege after the `us-west` audit (DOCS-1001).",
+        "SRE paired with Security on a Atlas rollback drill covering purpose scenarios in `us-west` (DOCS-8692).",
+        "Architecture review referenced purpose when approving the `us-west` Atlas change window (DOCS-8481).",
+        "Security validated purpose on Atlas in `us-west` during the Q1 game day; notes in DOCS-3867."
+      ],
+      "min_words": 781
+    },
+    {
+      "path": "policies/code_of_conduct.md",
+      "title": "Code of Conduct",
+      "type": "policy",
+      "owner": "HR",
+      "owner_contact": "people-ops@acmecloud.io",
+      "related_systems": [
+        "Atlas",
+        "Ledger",
+        "Gatehouse"
+      ],
+      "related_documents": [
+        "acceptable_use_policy.md",
+        "company/company_overview.md",
+        "hr/performance_review_cycle.md"
+      ],
+      "required_facts": [
+        "Code of Conduct establishes mandatory requirements for HR stakeholders at AcmeCloud Analytics.",
+        "This policy supports consistent operations across Gatehouse-protected systems and regional cells.",
+        "HR validated purpose on Atlas in `eu-central` during the Q1 game day; notes in DOCS-4770.",
+        "FinOps correlated Atlas usage with Ledger exports when reviewing purpose for `policies/code_of_conduct.md` (DOCS-7883).",
+        "Security attested Gatehouse groups tied to purpose remained least-privilege after the `eu-central` audit (DOCS-2385).",
+        "SRE paired with HR on a Atlas rollback drill covering purpose scenarios in `eu-central` (DOCS-6708).",
+        "Architecture review referenced purpose when approving the `eu-central` Atlas change window (DOCS-2571).",
+        "HR validated purpose on Atlas in `eu-central` during the Q1 game day; notes in DOCS-3809."
+      ],
+      "min_words": 774
+    },
+    {
+      "path": "policies/equipment_policy.md",
+      "title": "IT Equipment Policy",
+      "type": "policy",
+      "owner": "HR",
+      "owner_contact": "it-ops@acmecloud.io",
+      "related_systems": [
+        "Atlas",
+        "Ledger",
+        "Gatehouse"
+      ],
+      "related_documents": [
+        "remote_work_policy.md",
+        "security_policy.md",
+        "hr/offboarding_checklist.md"
+      ],
+      "required_facts": [
+        "Standards for issuing, maintaining, and returning company hardware.",
+        "HR validated overview on Atlas in `us-west` during the Q1 game day; notes in DOCS-7353.",
+        "Architecture review referenced overview when approving the `us-east` Atlas change window (DOCS-6767).",
+        "All employees receiving AcmeCloud-managed devices.",
+        "FinOps correlated Atlas usage with Ledger exports when reviewing scope for `policies/equipment_policy.md` (DOCS-5868).",
+        "HR validated scope on Atlas in `us-west` during the Q1 game day; notes in DOCS-5269.",
+        "**Engineers receive MacBook Pro 14\" (M-series) or Dell XPS 15** based on preference survey. Data science roles may request Linux-approved Dell Precision workstations. Standard RAM is **32 GB** with **1 TB** SSD.",
+        "Security attested Gatehouse groups tied to standard laptop models for engineers remained least-privilege after the `us-east` audit (DOCS-3109).",
+        "FinOps correlated Atlas usage with Ledger exports when reviewing standard laptop models for engineers for `policies/equipment_policy.md` (DOCS-4153).",
+        "Employees may **refresh assigned hardware every 36 months** or sooner when device fails warranty repair thresholds. Refresh requests require manager approval in the IT portal.",
+        "SRE paired with HR on a Atlas rollback drill covering hardware refresh cycle scenarios in `us-west` (DOCS-5681).",
+        "Security attested Gatehouse groups tied to hardware refresh cycle remained least-privilege after the `us-east` audit (DOCS-5033).",
+        "**AcmeCloud covers accidental damage** for the first incident per rolling 24 months. Subsequent incidents may require employee contribution up to **$250** unless covered by AppleCare/ProSupport.",
+        "Architecture review referenced accidental damage when approving the `eu-central` Atlas change window (DOCS-3570).",
+        "SRE paired with HR on a Atlas rollback drill covering accidental damage scenarios in `us-west` (DOCS-5893).",
+        "Staff **may choose between Windows and macOS** for standard engineering laptops. Linux is available on Precision workstations only. All OS choices must support MDM enrollment and Gatehouse plugins."
+      ],
+      "min_words": 800,
+      "benchmark_alignment": {
+        "dataset": "retrieval_benchmark_v1",
+        "document_key": "equipment-policy"
+      }
+    },
+    {
+      "path": "policies/expense_policy.md",
+      "title": "Expense Reimbursement Policy",
+      "type": "policy",
+      "owner": "Finance",
+      "owner_contact": "finance-expenses@acmecloud.io",
+      "related_systems": [
+        "Ledger",
+        "Gatehouse"
+      ],
+      "related_documents": [
+        "travel_policy.md",
+        "remote_work_policy.md",
+        "finance/procurement_policy.md"
+      ],
+      "required_facts": [
+        "Rules for submitting, approving, and reimbursing business expenses at AcmeCloud Analytics.",
+        "Finance validated overview on Ledger in `us-east` during the Q1 game day; notes in DOCS-7872.",
+        "Architecture review referenced overview when approving the `eu-central` Ledger change window (DOCS-8310).",
+        "All employees with corporate card or out-of-pocket reimbursement privileges.",
+        "FinOps correlated Ledger usage with Ledger exports when reviewing scope for `policies/expense_policy.md` (DOCS-6663).",
+        "Finance validated scope on Ledger in `us-east` during the Q1 game day; notes in DOCS-6205.",
+        "The **monthly limit for client entertainment is $500 per employee** unless director pre-approval is recorded. Entertainment must include at least one external customer or prospect attendee.",
+        "Security attested Gatehouse groups tied to client entertainment limit remained least-privilege after the `eu-central` audit (DOCS-5236).",
+        "FinOps correlated Ledger usage with Ledger exports when reviewing client entertainment limit for `policies/expense_policy.md` (DOCS-7359).",
+        "Employees must **submit expense reports within 30 days** of incurring charges. Corporate card transactions auto-import but require categorization within the same window.",
+        "SRE paired with Finance on a Ledger rollback drill covering expense report submission deadline scenarios in `us-east` (DOCS-5414).",
+        "Security attested Gatehouse groups tied to expense report submission deadline remained least-privilege after the `eu-central` audit (DOCS-7113).",
+        "**Home internet costs are reimbursable up to $75/month** for eligible remote employees per Remote Work Policy. Receipts must show service address matching HR work location.",
+        "Architecture review referenced home internet reimbursement when approving the `us-west` Ledger change window (DOCS-8938).",
+        "SRE paired with Finance on a Ledger rollback drill covering home internet reimbursement scenarios in `us-east` (DOCS-9521).",
+        "Receipts must show **merchant, date, amount, currency, and business purpose**. Meals require attendee names. Alcohol is not reimbursable unless pre-approved customer dinner."
+      ],
+      "min_words": 800,
+      "benchmark_alignment": {
+        "dataset": "retrieval_benchmark_v1",
+        "document_key": "expense-policy"
+      }
+    },
+    {
+      "path": "policies/onboarding_policy.md",
+      "title": "Employee Onboarding Policy",
+      "type": "policy",
+      "owner": "HR",
+      "owner_contact": "people-ops@acmecloud.io",
+      "related_systems": [
+        "Atlas",
+        "Ledger",
+        "Gatehouse"
+      ],
+      "related_documents": [
+        "remote_work_policy.md",
+        "equipment_policy.md",
+        "security_policy.md",
+        "procedures/access_provisioning.md"
+      ],
+      "required_facts": [
+        "This policy standardizes the first 90 days of employment at AcmeCloud Analytics, including day-one activities, training, equipment, credentials, and manager responsibilities.",
+        "HR validated overview on Atlas in `us-east` during the Q1 game day; notes in DOCS-2018.",
+        "Architecture review referenced overview when approving the `eu-central` Atlas change window (DOCS-4204).",
+        "Applies to all full-time employees. Contractors follow a shortened checklist managed by Procurement.",
+        "FinOps correlated Atlas usage with Ledger exports when reviewing scope for `policies/onboarding_policy.md` (DOCS-5242).",
+        "HR validated scope on Atlas in `us-east` during the Q1 game day; notes in DOCS-9022.",
+        "On **day one**, new hires: (1) complete identity verification with HR at 9:00 AM local time; (2) receive Gatehouse credentials and MFA enrollment; (3) attend company overview with People Ops; (4) meet their manager for role expectations; (5) begin security awareness training; (6) join the `#new-hires` Slack channel. Remote hires attend via Zoom with IT shipping equipment in advance when possible.",
+        "Security attested Gatehouse groups tied to first day of onboarding remained least-privilege after the `eu-central` audit (DOCS-5986).",
+        "FinOps correlated Atlas usage with Ledger exports when reviewing first day of onboarding for `policies/onboarding_policy.md` (DOCS-6330).",
+        "The **probation period is 90 days** from the start date. Managers conduct 30-, 60-, and 90-day check-ins. Successful completion is required before equity vesting clock adjustments and permanent remote eligibility.",
+        "SRE paired with HR on a Atlas rollback drill covering probation period scenarios in `us-east` (DOCS-2232).",
+        "HR assigns an **onboarding buddy** from the same department (not the direct manager) at least three days before start date. Buddies answer cultural questions, introduce team rituals, and pair on first-week lunches.",
+        "Architecture review referenced onboarding buddy when approving the `us-west` Atlas change window (DOCS-8586).",
+        "All employees must complete in the **first week**: Gatehouse security training, code of conduct attestation, harassment prevention, data classification overview, and product platform orientation (AcmeCloud Data Lake, Insights, AI Studio, Observe). Engineering hires add secure SDLC and incident response awareness.",
+        "HR validated week-one training on Atlas in `eu-central` during the Q1 game day; notes in DOCS-2479.",
+        "**Laptops ship 5 business days before start date** for US hires and **10 business days** for EU hires. Monitors and docks ship after home office survey completion. Day-one desk setups are ready for office-based hires."
+      ],
+      "min_words": 800,
+      "benchmark_alignment": {
+        "dataset": "retrieval_benchmark_v1",
+        "document_key": "onboarding-policy"
+      }
+    },
+    {
+      "path": "policies/remote_work_policy.md",
+      "title": "Remote and Hybrid Work Policy",
+      "type": "policy",
+      "owner": "HR",
+      "owner_contact": "people-ops@acmecloud.io",
+      "related_systems": [
+        "Atlas",
+        "Ledger",
+        "Gatehouse"
+      ],
+      "related_documents": [
+        "equipment_policy.md",
+        "security_policy.md",
+        "expense_policy.md",
+        "hr/pto_and_leave.md"
+      ],
+      "required_facts": [
+        "This policy defines eligibility, expectations, and approval workflows for remote and hybrid work at AcmeCloud Analytics. It applies to full-time employees in the United States and European Union. Contractors follow separate engagement terms and are generally not eligible for permanent remote arrangements unless explicitly stated in their statement of work.",
+        "HR validated overview on Atlas in `us-east` during the Q1 game day; notes in DOCS-1475.",
+        "The policy covers work location, core hours, geographic restrictions, home office requirements, and coworking usage. Equipment standards are defined in the Equipment Policy. Security controls for remote access are defined in the Security Policy.",
+        "FinOps correlated Atlas usage with Ledger exports when reviewing scope for `policies/remote_work_policy.md` (DOCS-2297).",
+        "Employees may request remote or hybrid work when they meet all of the following eligibility requirements:",
+        "Completed probation period (90 days) with satisfactory performance;",
+        "Role is classified as remote-eligible by HR and the hiring manager;",
+        "Primary work location remains in an approved country (US or EU member state where AcmeCloud is registered);",
+        "Employee maintains a dedicated workspace meeting equipment and bandwidth standards;",
+        "No active performance improvement plan.",
+        "New hires may begin hybrid work after completing week-one onboarding training if their role is pre-approved as remote-eligible.",
+        "Security attested Gatehouse groups tied to eligibility requirements for remote work remained least-privilege after the `eu-central` audit (DOCS-7693).",
+        "Hybrid employees may work from home up to **three days per week** by default. Teams may approve up to **four days per week** with director approval. Fully remote employees work from an approved home office five days per week and visit a hub office at least twice per year for team events.",
+        "SRE paired with HR on a Atlas rollback drill covering hybrid and fully remote schedules scenarios in `us-east` (DOCS-9484).",
+        "Remote and hybrid employees must be available during **core hours: 10:00–15:00 local time** on their primary workday timezone, Monday through Friday. Meetings outside core hours require mutual agreement. Employees on the PTO and Leave policy must set out-of-office expectations before extended leave.",
+        "Architecture review referenced core hours and availability when approving the `us-west` Atlas change window (DOCS-1492)."
+      ],
+      "min_words": 800,
+      "benchmark_alignment": {
+        "dataset": "retrieval_benchmark_v1",
+        "document_key": "remote-work-policy"
+      }
+    },
+    {
+      "path": "policies/security_policy.md",
+      "title": "Information Security Policy",
+      "type": "policy",
+      "owner": "Security",
+      "owner_contact": "security@acmecloud.io",
+      "related_systems": [
+        "Atlas",
+        "Ledger",
+        "Gatehouse"
+      ],
+      "related_documents": [
+        "remote_work_policy.md",
+        "equipment_policy.md",
+        "security/access_management.md",
+        "procedures/incident_response.md"
+      ],
+      "required_facts": [
+        "Company-wide information security requirements for all AcmeCloud Analytics employees, contractors, and partners with system access.",
+        "Security validated overview on Gatehouse in `us-west` during the Q1 game day; notes in DOCS-6181.",
+        "Architecture review referenced overview when approving the `us-east` Gatehouse change window (DOCS-4779).",
+        "All corporate and customer data handled through Gatehouse-protected systems, laptops, and approved SaaS tools. SOC 2 Type II controls apply.",
+        "FinOps correlated Atlas usage with Ledger exports when reviewing scope for `policies/security_policy.md` (DOCS-3293).",
+        "Security validated scope on Atlas in `us-west` during the Q1 game day; notes in DOCS-1904.",
+        "Employees must **rotate passwords every 90 days** for systems not protected by SSO. SSO-backed systems rely on Gatehouse password policies with **minimum 14 characters** and breach list checks. Password reuse across systems is prohibited.",
+        "Security attested Gatehouse groups tied to password rotation remained least-privilege after the `us-east` audit (DOCS-7257).",
+        "FinOps correlated Gatehouse usage with Ledger exports when reviewing password rotation for `policies/security_policy.md` (DOCS-8455).",
+        "**Multi-factor authentication is required** for Gatehouse, email, VPN, GitHub, production consoles, and all customer data stores. Hardware security keys are required for administrators and production deployers.",
+        "SRE paired with Security on a Atlas rollback drill covering multi-factor authentication scenarios in `us-west` (DOCS-3703).",
+        "Security attested Gatehouse groups tied to multi-factor authentication remained least-privilege after the `us-east` audit (DOCS-7350).",
+        "**Personal USB drives are prohibited** on company laptops. Approved encrypted USB devices may be issued by IT for air-gapped transfers with Security ticket approval. Unauthorized media triggers endpoint alerts.",
+        "Architecture review referenced usb and removable media when approving the `eu-central` Gatehouse change window (DOCS-8107).",
+        "SRE paired with Security on a Gatehouse rollback drill covering usb and removable media scenarios in `us-west` (DOCS-5741).",
+        "Employees must **report suspected phishing to security@acmecloud.io** and use the Outlook \"Report Phish\" button. Do not click links or forward suspicious messages. Security acknowledges reports within **4 business hours**."
+      ],
+      "min_words": 800,
+      "benchmark_alignment": {
+        "dataset": "retrieval_benchmark_v1",
+        "document_key": "security-policy"
+      }
+    },
+    {
+      "path": "policies/travel_policy.md",
+      "title": "Business Travel Policy",
+      "type": "policy",
+      "owner": "Finance",
+      "owner_contact": "finance-travel@acmecloud.io",
+      "related_systems": [
+        "Atlas",
+        "Ledger",
+        "Gatehouse"
+      ],
+      "related_documents": [
+        "expense_policy.md",
+        "finance/budget_planning.md",
+        "hr/pto_and_leave.md"
+      ],
+      "required_facts": [
+        "Rules for booking, approving, and expensing business travel for AcmeCloud Analytics employees.",
+        "Finance validated overview on Atlas in `us-east` during the Q1 game day; notes in DOCS-3585.",
+        "Architecture review referenced overview when approving the `eu-central` Atlas change window (DOCS-4476).",
+        "Domestic and international travel for customer, conference, and internal business purposes.",
+        "FinOps correlated Atlas usage with Ledger exports when reviewing scope for `policies/travel_policy.md` (DOCS-2038).",
+        "Finance validated scope on Atlas in `us-east` during the Q1 game day; notes in DOCS-7318.",
+        "**Domestic business travel approves economy class** as the standard fare. Premium economy is permitted for flights over **five hours**. Business class requires VP approval and is limited to executive travel or documented medical accommodation.",
+        "Security attested Gatehouse groups tied to domestic airfare class remained least-privilege after the `eu-central` audit (DOCS-9042).",
+        "FinOps correlated Atlas usage with Ledger exports when reviewing domestic airfare class for `policies/travel_policy.md` (DOCS-6414).",
+        "Flights must be booked at least **14 days in advance** for domestic trips and **21 days** for international trips unless an emergency exception is approved by the traveler’s director.",
+        "SRE paired with Finance on a Atlas rollback drill covering booking lead time scenarios in `us-east` (DOCS-7469).",
+        "Security attested Gatehouse groups tied to booking lead time remained least-privilege after the `eu-central` audit (DOCS-5032).",
+        "**International travel requests require approval from the employee's VP** and Finance for trips estimated above **$3,500**. Security review is required for travel to elevated-risk countries listed in the vendor security portal.",
+        "Architecture review referenced international travel approval when approving the `us-west` Atlas change window (DOCS-4001).",
+        "SRE paired with Finance on a Atlas rollback drill covering international travel approval scenarios in `us-east` (DOCS-4951).",
+        "**Ride-share expenses are reimbursable** during business travel when used between airport, hotel, and work sites. Personal detours are not reimbursable. Receipts must show pickup and drop-off."
+      ],
+      "min_words": 800,
+      "benchmark_alignment": {
+        "dataset": "retrieval_benchmark_v1",
+        "document_key": "travel-policy"
+      }
+    },
+    {
+      "path": "postmortems/2025-02-14-eu-central-outage.md",
+      "title": "Postmortem — 2025-02-14 eu-central Cell Outage",
+      "type": "postmortem",
+      "owner": "SRE",
+      "owner_contact": "sre-incidents@acmecloud.io",
+      "related_systems": [
+        "Atlas",
+        "Harbor",
+        "Mercury",
+        "Beacon",
+        "Ledger",
+        "Gatehouse"
+      ],
+      "related_documents": [
+        "rfcs/rfc_004_multi_region_cells.md",
+        "sre/disaster_recovery.md",
+        "data-platform/streaming_pipeline_guide.md",
+        "procedures/incident_response.md"
+      ],
+      "required_facts": [
+        "SEV-1 outage in eu-central cell caused by Atlas routing misconfiguration during Mercury deployment, affecting Harbor replication lag.",
+        "Severity **SEV-1** incident on **2025-02-14** (INC-4728); bridge followed Incident Response.",
+        "Affected systems: Atlas, Harbor, Mercury. Customer-facing impact assessed against published SLAs.",
+        "SRE validated summary on Atlas in `us-east` during the Q1 game day; notes in DOCS-3347.",
+        "SRE validated summary on Harbor in `us-west` during the Q1 game day; notes in DOCS-1442.",
+        "Customer impact window and internal SLO burn recorded for Atlas, Harbor, Mercury dependencies on 2025-02-14.",
+        "Support linked the event to INC tracking; executive summary posted when severity exceeded SEV-2 thresholds.",
+        "Error budget consumption for the quarter increased by an estimated 8–15% due to INC-4728 duration."
+      ],
+      "min_words": 778
+    },
+    {
+      "path": "postmortems/2025-06-01-feature-store-degradation.md",
+      "title": "Postmortem — 2025-06-01 Feature Store Degradation",
+      "type": "postmortem",
+      "owner": "SRE",
+      "owner_contact": "sre-incidents@acmecloud.io",
+      "related_systems": [
+        "Orion",
+        "Harbor",
+        "Gatehouse",
+        "Atlas",
+        "Beacon",
+        "Ledger"
+      ],
+      "related_documents": [
+        "rfcs/rfc_002_feature_store_design.md",
+        "ai-platform/feature_store_guide.md",
+        "ai-platform/ml_incident_playbook.md"
+      ],
+      "required_facts": [
+        "SEV-2 degradation in online feature serving increased Orion inference latency due to stale Harbor snapshots.",
+        "Severity **SEV-2** incident on **2025-06-01** (INC-8382); bridge followed Incident Response.",
+        "Affected systems: Orion, Harbor, Gatehouse. Customer-facing impact assessed against published SLAs.",
+        "SRE validated summary on Orion in `eu-central` during the Q1 game day; notes in DOCS-1650.",
+        "SRE validated summary on Harbor in `us-east` during the Q1 game day; notes in DOCS-3487.",
+        "SRE validated summary on Gatehouse in `us-west` during the Q1 game day; notes in DOCS-3521.",
+        "Customer impact window and internal SLO burn recorded for Orion, Harbor, Gatehouse dependencies on 2025-06-01.",
+        "Support linked the event to INC tracking; executive summary posted when severity exceeded SEV-2 thresholds."
+      ],
+      "min_words": 788
+    },
+    {
+      "path": "postmortems/2025-08-12-gatehouse-auth-outage.md",
+      "title": "Postmortem — 2025-08-12 Gatehouse Auth Outage",
+      "type": "postmortem",
+      "owner": "SRE",
+      "owner_contact": "sre-incidents@acmecloud.io",
+      "related_systems": [
+        "Gatehouse",
+        "Atlas",
+        "Beacon",
+        "Ledger"
+      ],
+      "related_documents": [
+        "security/access_management.md",
+        "procedures/access_provisioning.md",
+        "procedures/incident_response.md"
+      ],
+      "required_facts": [
+        "SEV-1 Gatehouse authentication outage blocked console and API access globally for 23 minutes.",
+        "Severity **SEV-1** incident on **2025-08-12** (INC-7093); bridge followed Incident Response.",
+        "Affected systems: Gatehouse, Atlas. Customer-facing impact assessed against published SLAs.",
+        "SRE validated summary on Gatehouse in `us-east` during the Q1 game day; notes in DOCS-2994.",
+        "SRE validated summary on Gatehouse in `us-west` during the Q1 game day; notes in DOCS-9641.",
+        "SRE validated summary on Gatehouse in `eu-central` during the Q1 game day; notes in DOCS-4866.",
+        "Customer impact window and internal SLO burn recorded for Gatehouse, Atlas dependencies on 2025-08-12.",
+        "Support linked the event to INC tracking; executive summary posted when severity exceeded SEV-2 thresholds."
+      ],
+      "min_words": 772
+    },
+    {
+      "path": "postmortems/2025-09-17-schema-registry-failure.md",
+      "title": "Postmortem — 2025-09-17 Schema Registry Failure",
+      "type": "postmortem",
+      "owner": "SRE",
+      "owner_contact": "sre-incidents@acmecloud.io",
+      "related_systems": [
+        "Harbor",
+        "Atlas",
+        "Gatehouse",
+        "Beacon",
+        "Ledger"
+      ],
+      "related_documents": [
+        "data-platform/schema_registry.md",
+        "data-platform/backfill_procedures.md",
+        "procedures/incident_response.md"
+      ],
+      "required_facts": [
+        "SEV-2 schema registry outage blocked pipeline publishes to Harbor tables.",
+        "Severity **SEV-2** incident on **2025-09-17** (INC-9296); bridge followed Incident Response.",
+        "Affected systems: Harbor, Atlas, Gatehouse. Customer-facing impact assessed against published SLAs.",
+        "SRE validated summary on Harbor in `us-west` during the Q1 game day; notes in DOCS-2515.",
+        "SRE validated summary on Atlas in `eu-central` during the Q1 game day; notes in DOCS-8257.",
+        "SRE validated summary on Gatehouse in `us-east` during the Q1 game day; notes in DOCS-9130.",
+        "Customer impact window and internal SLO burn recorded for Harbor, Atlas, Gatehouse dependencies on 2025-09-17.",
+        "Support linked the event to INC tracking; executive summary posted when severity exceeded SEV-2 thresholds."
+      ],
+      "min_words": 778
+    },
+    {
+      "path": "postmortems/2025-11-03-observability-ingestion-delay.md",
+      "title": "Postmortem — 2025-11-03 Observability Ingestion Delay",
+      "type": "postmortem",
+      "owner": "SRE",
+      "owner_contact": "sre-incidents@acmecloud.io",
+      "related_systems": [
+        "Beacon",
+        "Atlas",
+        "Ledger",
+        "Gatehouse"
+      ],
+      "related_documents": [
+        "rfcs/rfc_003_observability_rework.md",
+        "observability-platform/alerting_and_routing.md",
+        "procedures/incident_response.md"
+      ],
+      "required_facts": [
+        "On 2025-11-03 a misconfigured Beacon shard allocator after an Atlas `us-west` cell migration caused a **47-minute delay** in alert delivery. No customer data was lost; internal SLO burn was the primary impact.",
+        "Severity **SEV-2**; bridge followed Incident Response with IC from SRE.",
+        "SRE validated summary on Beacon in `us-east` during the Q1 game day; notes in DOCS-4404.",
+        "Architecture review referenced summary when approving the `us-east` Atlas change window (DOCS-6013).",
+        "SRE paired with SRE on a Beacon rollback drill covering summary scenarios in `us-east` (DOCS-4153).",
+        "Delayed PagerDuty pages for three Tier-1 services; MTTA increased from 4m to 51m for affected rules.",
+        "Customer-facing status remained green — synthetic probes did not cover Beacon-internal lag.",
+        "Weekly error budget for observability ingestion burned 38% in a single afternoon."
+      ],
+      "min_words": 771
+    },
+    {
+      "path": "postmortems/2026-01-22-model-serving-latency.md",
+      "title": "Postmortem — 2026-01-22 Model Serving Latency",
+      "type": "postmortem",
+      "owner": "SRE",
+      "owner_contact": "sre-incidents@acmecloud.io",
+      "related_systems": [
+        "Orion",
+        "Atlas",
+        "Beacon",
+        "Ledger",
+        "Gatehouse"
+      ],
+      "related_documents": [
+        "ai-platform/model_serving_runbook.md",
+        "ai-platform/online_inference_slos.md",
+        "procedures/incident_response.md"
+      ],
+      "required_facts": [
+        "SEV-2 Orion canary deploy increased P99 inference latency in us-east.",
+        "Severity **SEV-2** incident on **2026-01-22** (INC-5870); bridge followed Incident Response.",
+        "Affected systems: Orion, Atlas. Customer-facing impact assessed against published SLAs.",
+        "SRE validated summary on Orion in `us-west` during the Q1 game day; notes in DOCS-2104.",
+        "SRE validated summary on Orion in `eu-central` during the Q1 game day; notes in DOCS-5364.",
+        "SRE validated summary on Orion in `us-east` during the Q1 game day; notes in DOCS-1759.",
+        "Customer impact window and internal SLO burn recorded for Orion, Atlas dependencies on 2026-01-22.",
+        "Support linked the event to INC tracking; executive summary posted when severity exceeded SEV-2 thresholds."
+      ],
+      "min_words": 774
+    },
+    {
+      "path": "procedures/access_provisioning.md",
+      "title": "Access Provisioning Procedure",
+      "type": "runbook",
+      "owner": "Security",
+      "owner_contact": "it-access@acmecloud.io",
+      "related_systems": [
+        "Atlas",
+        "Ledger",
+        "Gatehouse"
+      ],
+      "related_documents": [
+        "policies/onboarding_policy.md",
+        "security/access_management.md",
+        "hr/offboarding_checklist.md"
+      ],
+      "required_facts": [
+        "Access Provisioning Procedure establishes mandatory requirements for Security stakeholders at AcmeCloud Analytics.",
+        "This policy supports consistent operations across Gatehouse-protected systems and regional cells.",
+        "Security validated purpose on Atlas in `eu-central` during the Q1 game day; notes in DOCS-1242.",
+        "FinOps correlated Atlas usage with Ledger exports when reviewing purpose for `procedures/access_provisioning.md` (DOCS-5411).",
+        "Security attested Gatehouse groups tied to purpose remained least-privilege after the `eu-central` audit (DOCS-5883).",
+        "SRE paired with Security on a Atlas rollback drill covering purpose scenarios in `eu-central` (DOCS-1300).",
+        "Architecture review referenced purpose when approving the `eu-central` Atlas change window (DOCS-9646).",
+        "Security validated purpose on Atlas in `eu-central` during the Q1 game day; notes in DOCS-5203."
+      ],
+      "min_words": 782
+    },
+    {
+      "path": "procedures/customer_escalation.md",
+      "title": "Customer Escalation Procedure",
+      "type": "runbook",
+      "owner": "Support",
+      "owner_contact": "support-escalations@acmecloud.io",
+      "related_systems": [
+        "Atlas",
+        "Ledger",
+        "Gatehouse"
+      ],
+      "related_documents": [
+        "support/escalation_matrix.md",
+        "incident_response.md",
+        "support/customer_incident_comms.md"
+      ],
+      "required_facts": [
+        "Customer Escalation Procedure establishes mandatory requirements for Support stakeholders at AcmeCloud Analytics.",
+        "This policy supports consistent operations across Gatehouse-protected systems and regional cells.",
+        "Support validated purpose on Atlas in `eu-central` during the Q1 game day; notes in DOCS-2925.",
+        "FinOps correlated Atlas usage with Ledger exports when reviewing purpose for `procedures/customer_escalation.md` (DOCS-1676).",
+        "Security attested Gatehouse groups tied to purpose remained least-privilege after the `eu-central` audit (DOCS-7793).",
+        "SRE paired with Support on a Atlas rollback drill covering purpose scenarios in `eu-central` (DOCS-3388).",
+        "Architecture review referenced purpose when approving the `eu-central` Atlas change window (DOCS-3327).",
+        "Support validated purpose on Atlas in `eu-central` during the Q1 game day; notes in DOCS-6462."
+      ],
+      "min_words": 780
+    },
+    {
+      "path": "procedures/data_access_request.md",
+      "title": "Data Access Request Procedure",
+      "type": "runbook",
+      "owner": "Security",
+      "owner_contact": "data-governance@acmecloud.io",
+      "related_systems": [
+        "Atlas",
+        "Ledger",
+        "Gatehouse",
+        "Harbor"
+      ],
+      "related_documents": [
+        "security/data_classification.md",
+        "access_provisioning.md",
+        "data-platform/workspace_isolation.md"
+      ],
+      "required_facts": [
+        "Data Access Request Procedure establishes mandatory requirements for Security stakeholders at AcmeCloud Analytics.",
+        "This policy supports consistent operations across Gatehouse-protected systems and regional cells.",
+        "Security validated purpose on Atlas in `eu-central` during the Q1 game day; notes in DOCS-1724.",
+        "FinOps correlated Atlas usage with Ledger exports when reviewing purpose for `procedures/data_access_request.md` (DOCS-3305).",
+        "Security attested Gatehouse groups tied to purpose remained least-privilege after the `eu-central` audit (DOCS-6969).",
+        "SRE paired with Security on a Atlas rollback drill covering purpose scenarios in `eu-central` (DOCS-6697).",
+        "Architecture review referenced purpose when approving the `eu-central` Atlas change window (DOCS-8036).",
+        "Security validated purpose on Atlas in `eu-central` during the Q1 game day; notes in DOCS-5882."
+      ],
+      "min_words": 782
+    },
+    {
+      "path": "procedures/emergency_change_process.md",
+      "title": "Emergency Change Process",
+      "type": "runbook",
+      "owner": "SRE",
+      "owner_contact": "sre-changes@acmecloud.io",
+      "related_systems": [
+        "Atlas",
+        "Ledger",
+        "Gatehouse"
+      ],
+      "related_documents": [
+        "sre/change_management.md",
+        "incident_response.md",
+        "sre/deployment_runbook.md"
+      ],
+      "required_facts": [
+        "Emergency Change Process establishes mandatory requirements for SRE stakeholders at AcmeCloud Analytics.",
+        "This policy supports consistent operations across Gatehouse-protected systems and regional cells.",
+        "SRE validated purpose on Atlas in `us-east` during the Q1 game day; notes in DOCS-2768.",
+        "FinOps correlated Atlas usage with Ledger exports when reviewing purpose for `procedures/emergency_change_process.md` (DOCS-1902).",
+        "Security attested Gatehouse groups tied to purpose remained least-privilege after the `us-east` audit (DOCS-5752).",
+        "SRE paired with SRE on a Atlas rollback drill covering purpose scenarios in `us-east` (DOCS-7995).",
+        "Architecture review referenced purpose when approving the `us-east` Atlas change window (DOCS-9603).",
+        "SRE validated purpose on Atlas in `us-east` during the Q1 game day; notes in DOCS-2886."
+      ],
+      "min_words": 781
+    },
+    {
+      "path": "procedures/incident_response.md",
+      "title": "Production Incident Response Procedure",
+      "type": "runbook",
+      "owner": "SRE",
+      "owner_contact": "sre-oncall@acmecloud.io",
+      "related_systems": [
+        "Atlas",
+        "Beacon",
+        "Mercury",
+        "Ledger",
+        "Gatehouse",
+        "Harbor"
+      ],
+      "related_documents": [
+        "sre/incident_management.md",
+        "sre/oncall_policy.md",
+        "security/security_incident_bridge.md",
+        "support/customer_incident_comms.md",
+        "postmortems/2025-02-14-eu-central-outage.md"
+      ],
+      "required_facts": [
+        "Step-by-step operational response for production incidents affecting AcmeCloud customer-facing platforms. Non-production incidents use the lighter-weight engineering escalation path.",
+        "SRE validated overview on Atlas in `us-west` during the Q1 game day; notes in DOCS-5457.",
+        "Applies to SEV-1 through SEV-4 production incidents across Atlas cells (`us-east`, `us-west`, `eu-central`). Security incidents also engage Security Incident Bridge.",
+        "FinOps correlated Beacon usage with Ledger exports when reviewing scope for `procedures/incident_response.md` (DOCS-1941).",
+        "Security attested Gatehouse groups tied to severity definitions remained least-privilege after the `us-east` audit (DOCS-2310).",
+        "**Step 1: Acknowledge the page within 5 minutes** for SEV-1 incidents. Primary on-call acknowledges in PagerDuty, posts in `#incident-warroom`, and begins triage using Beacon dashboards and Atlas cell health panels.",
+        "SRE paired with SRE on a Atlas rollback drill covering step 1 — acknowledge and triage scenarios in `us-west` (DOCS-5471).",
+        "Open a Zoom bridge linked from the PagerDuty incident and Slack `#incident-warroom`. The bridge remains active until mitigation is verified.",
+        "Architecture review referenced step 2 — open incident bridge when approving the `eu-central` Beacon change window (DOCS-5969).",
+        "The **Incident Commander (IC) leads the incident response bridge call** and coordinates domain experts. Assign comms lead, scribe, and technical leads. IC is typically the primary on-call unless escalated.",
+        "SRE validated step 3 — assign roles on Gatehouse in `us-east` during the Q1 game day; notes in DOCS-8027.",
+        "Assess customer impact using support ticket rate and synthetic probes. Comms lead coordinates Customer Incident Communications and status page updates for SEV-1/SEV-2.",
+        "FinOps correlated Atlas usage with Ledger exports when reviewing step 4 — customer impact and status page for `procedures/incident_response.md` (DOCS-7829).",
+        "**Legal must be involved** when incidents involve personal data exposure, regulatory notification triggers, or active attacker activity. Security joins via bridge when Gatehouse, data exfiltration, or forensic preservation is required.",
+        "Security attested Gatehouse groups tied to step 5 — legal and security engagement remained least-privilege after the `eu-central` audit (DOCS-4964).",
+        "Execute runbooks, roll back Atlas deployments, scale Mercury consumers, or failover Harbor replicas per cell. All production changes during SEV-1 require paired approval per emergency change process."
+      ],
+      "min_words": 800,
+      "benchmark_alignment": {
+        "dataset": "retrieval_benchmark_v1",
+        "document_key": "incident-response"
+      }
+    },
+    {
+      "path": "product/feature_flags.md",
+      "title": "Feature Flags",
+      "type": "handbook",
+      "owner": "Product",
+      "owner_contact": "product-flags@acmecloud.io",
+      "related_systems": [
+        "Atlas",
+        "Ledger",
+        "Gatehouse"
+      ],
+      "related_documents": [
+        "product_development_lifecycle.md",
+        "engineering/branching_and_release_strategy.md",
+        "analytics-platform/analytics_release_process.md"
+      ],
+      "required_facts": [
+        "Feature Flags is the Product reference for how teams build, ship, and operate software at AcmeCloud.",
+        "It complements platform runbooks and applies to engineers working with Atlas across all regional cells.",
+        "New hires complete LMS training modules referencing `product/feature_flags.md` before receiving Gatehouse production elevation.",
+        "Product validated overview on Atlas in `us-east` during the Q1 game day; notes in DOCS-8533.",
+        "FinOps correlated Atlas usage with Ledger exports when reviewing overview for `product/feature_flags.md` (DOCS-7238).",
+        "Security attested Gatehouse groups tied to overview remained least-privilege after the `us-east` audit (DOCS-9081).",
+        "SRE paired with Product on a Atlas rollback drill covering overview scenarios in `us-east` (DOCS-8191).",
+        "**System:** Atlas feature flag service for console and API. Teams document exceptions in Jira with Security review when Atlas access patterns change."
+      ],
+      "min_words": 650
+    },
+    {
+      "path": "product/prd_guidelines.md",
+      "title": "PRD Guidelines",
+      "type": "handbook",
+      "owner": "Product",
+      "owner_contact": "product@acmecloud.io",
+      "related_systems": [
+        "Atlas",
+        "Ledger",
+        "Gatehouse"
+      ],
+      "related_documents": [
+        "product_development_lifecycle.md",
+        "ai-platform/responsible_ai_guidelines.md",
+        "feature_flags.md"
+      ],
+      "required_facts": [
+        "PRD Guidelines is the Product reference for how teams build, ship, and operate software at AcmeCloud.",
+        "It complements platform runbooks and applies to engineers working with Atlas across all regional cells.",
+        "New hires complete LMS training modules referencing `product/prd_guidelines.md` before receiving Gatehouse production elevation.",
+        "Product validated overview on Atlas in `us-west` during the Q1 game day; notes in DOCS-3108.",
+        "FinOps correlated Atlas usage with Ledger exports when reviewing overview for `product/prd_guidelines.md` (DOCS-9605).",
+        "Security attested Gatehouse groups tied to overview remained least-privilege after the `us-west` audit (DOCS-5758).",
+        "SRE paired with Product on a Atlas rollback drill covering overview scenarios in `us-west` (DOCS-6831).",
+        "**Template:** Problem, goals, metrics, requirements, rollout. Teams document exceptions in Jira with Security review when Atlas access patterns change."
+      ],
+      "min_words": 650
+    },
+    {
+      "path": "product/product_development_lifecycle.md",
+      "title": "Product Development Lifecycle",
+      "type": "handbook",
+      "owner": "Product",
+      "owner_contact": "product@acmecloud.io",
+      "related_systems": [
+        "Atlas",
+        "Ledger",
+        "Gatehouse"
+      ],
+      "related_documents": [
+        "prd_guidelines.md",
+        "engineering/sdlc_overview.md",
+        "roadmap_planning.md"
+      ],
+      "required_facts": [
+        "Product Development Lifecycle is the Product reference for how teams build, ship, and operate software at AcmeCloud.",
+        "It complements platform runbooks and applies to engineers working with Atlas across all regional cells.",
+        "New hires complete LMS training modules referencing `product/product_development_lifecycle.md` before receiving Gatehouse production elevation.",
+        "Product validated overview on Atlas in `eu-central` during the Q1 game day; notes in DOCS-3919.",
+        "FinOps correlated Atlas usage with Ledger exports when reviewing overview for `product/product_development_lifecycle.md` (DOCS-3558).",
+        "Security attested Gatehouse groups tied to overview remained least-privilege after the `eu-central` audit (DOCS-1392).",
+        "SRE paired with Product on a Atlas rollback drill covering overview scenarios in `eu-central` (DOCS-6977).",
+        "**Stages:** Discovery, PRD, build, launch, iterate. Teams document exceptions in Jira with Security review when Atlas access patterns change."
+      ],
+      "min_words": 650
+    },
+    {
+      "path": "product/roadmap_planning.md",
+      "title": "Roadmap Planning",
+      "type": "handbook",
+      "owner": "Product",
+      "owner_contact": "product@acmecloud.io",
+      "related_systems": [
+        "Atlas",
+        "Ledger",
+        "Gatehouse"
+      ],
+      "related_documents": [
+        "company/product_portfolio.md",
+        "product_development_lifecycle.md",
+        "support/support_tier_structure.md"
+      ],
+      "required_facts": [
+        "Roadmap Planning is the Product reference for how teams build, ship, and operate software at AcmeCloud.",
+        "It complements platform runbooks and applies to engineers working with Atlas across all regional cells.",
+        "New hires complete LMS training modules referencing `product/roadmap_planning.md` before receiving Gatehouse production elevation.",
+        "Product validated overview on Atlas in `us-east` during the Q1 game day; notes in DOCS-9988.",
+        "FinOps correlated Atlas usage with Ledger exports when reviewing overview for `product/roadmap_planning.md` (DOCS-7901).",
+        "Security attested Gatehouse groups tied to overview remained least-privilege after the `us-east` audit (DOCS-1071).",
+        "SRE paired with Product on a Atlas rollback drill covering overview scenarios in `us-east` (DOCS-9605).",
+        "**Cadence:** Quarterly roadmap with leadership review. Teams document exceptions in Jira with Security review when Atlas access patterns change."
+      ],
+      "min_words": 650
+    },
+    {
+      "path": "rfcs/rfc_001_clickhouse_migration.md",
+      "title": "RFC 001 — ClickHouse Migration for Analytics Queries",
+      "type": "rfc",
+      "owner": "Analytics Platform",
+      "owner_contact": "analytics-arch@acmecloud.io",
+      "related_systems": [
+        "Harbor",
+        "Atlas",
+        "Beacon",
+        "Ledger",
+        "Gatehouse"
+      ],
+      "related_documents": [
+        "analytics-platform/analytics_platform_overview.md",
+        "data-platform/data_platform_overview.md"
+      ],
+      "required_facts": [
+        "Analytics query latency exceeded SLO during peak BI hours while Harbor storage grew 3x year-over-year.",
+        "Analytics Platform drafted RFC-001 after production signals indicated the decision could no longer be deferred.",
+        "Systems in scope: Harbor. Architecture review ticket ARCH-406 tracks stakeholder sign-off.",
+        "Customer commitments and EU data residency constraints were weighed alongside operational cost.",
+        "Stakeholders from Security, SRE, Finance, and Support reviewed impact on customer SLAs before the vote.",
+        "Analytics Platform validated context on Harbor in `us-west` during the Q1 game day; notes in DOCS-3766.",
+        "SRE paired with Analytics Platform on a Harbor rollback drill covering context scenarios in `us-east` (DOCS-3072).",
+        "FinOps correlated Harbor usage with Ledger exports when reviewing context for `rfcs/rfc_001_clickhouse_migration.md` (DOCS-2588)."
+      ],
+      "min_words": 878
+    },
+    {
+      "path": "rfcs/rfc_002_feature_store_design.md",
+      "title": "RFC 002 — Feature Store Design",
+      "type": "rfc",
+      "owner": "AI Platform",
+      "owner_contact": "feature-store@acmecloud.io",
+      "related_systems": [
+        "Orion",
+        "Harbor",
+        "Gatehouse",
+        "Atlas",
+        "Beacon",
+        "Ledger"
+      ],
+      "related_documents": [
+        "ai-platform/feature_store_guide.md",
+        "postmortems/2025-06-01-feature-store-degradation.md"
+      ],
+      "required_facts": [
+        "ML teams duplicated feature pipelines causing training/serving skew and incident risk.",
+        "AI Platform drafted RFC-002 after production signals indicated the decision could no longer be deferred.",
+        "Systems in scope: Orion, Harbor, Gatehouse. Architecture review ticket ARCH-304 tracks stakeholder sign-off.",
+        "Customer commitments and EU data residency constraints were weighed alongside operational cost.",
+        "Stakeholders from Security, SRE, Finance, and Support reviewed impact on customer SLAs before the vote.",
+        "AI Platform validated context on Orion in `us-west` during the Q1 game day; notes in DOCS-7594.",
+        "SRE paired with AI Platform on a Gatehouse rollback drill covering context scenarios in `us-east` (DOCS-6519).",
+        "FinOps correlated Harbor usage with Ledger exports when reviewing context for `rfcs/rfc_002_feature_store_design.md` (DOCS-5999)."
+      ],
+      "min_words": 890
+    },
+    {
+      "path": "rfcs/rfc_003_observability_rework.md",
+      "title": "RFC 003 — Observability Ingestion Rework (Beacon)",
+      "type": "rfc",
+      "owner": "Observability Platform",
+      "owner_contact": "observe-platform@acmecloud.io",
+      "related_systems": [
+        "Beacon",
+        "Atlas",
+        "Ledger",
+        "Gatehouse"
+      ],
+      "related_documents": [
+        "observability-platform/observability_platform_overview.md",
+        "postmortems/2025-11-03-observability-ingestion-delay.md"
+      ],
+      "required_facts": [
+        "Legacy ingestion could not scale past 2M events/sec in us-west without backlog.",
+        "Observability Platform drafted RFC-003 after production signals indicated the decision could no longer be deferred.",
+        "Systems in scope: Beacon, Atlas. Architecture review ticket ARCH-493 tracks stakeholder sign-off.",
+        "Customer commitments and EU data residency constraints were weighed alongside operational cost.",
+        "Stakeholders from Security, SRE, Finance, and Support reviewed impact on customer SLAs before the vote.",
+        "Observability Platform validated context on Beacon in `eu-central` during the Q1 game day; notes in DOCS-2378.",
+        "SRE paired with Observability Platform on a Beacon rollback drill covering context scenarios in `us-west` (DOCS-1855).",
+        "FinOps correlated Beacon usage with Ledger exports when reviewing context for `rfcs/rfc_003_observability_rework.md` (DOCS-7648)."
+      ],
+      "min_words": 882
+    },
+    {
+      "path": "rfcs/rfc_004_multi_region_cells.md",
+      "title": "RFC 004 — Multi-Region Atlas Cells",
+      "type": "rfc",
+      "owner": "SRE",
+      "owner_contact": "platform-arch@acmecloud.io",
+      "related_systems": [
+        "Atlas",
+        "Mercury",
+        "Harbor",
+        "Ledger",
+        "Beacon",
+        "Gatehouse"
+      ],
+      "related_documents": [
+        "data-platform/data_platform_overview.md",
+        "sre/disaster_recovery.md",
+        "postmortems/2025-02-14-eu-central-outage.md"
+      ],
+      "required_facts": [
+        "Single-region scaling limits and EU data residency requirements forced regional isolation.",
+        "SRE drafted RFC-004 after production signals indicated the decision could no longer be deferred.",
+        "Systems in scope: Atlas, Mercury, Harbor, Ledger. Architecture review ticket ARCH-146 tracks stakeholder sign-off.",
+        "Customer commitments and EU data residency constraints were weighed alongside operational cost.",
+        "Stakeholders from Security, SRE, Finance, and Support reviewed impact on customer SLAs before the vote.",
+        "SRE validated context on Atlas in `us-east` during the Q1 game day; notes in DOCS-4869.",
+        "SRE paired with SRE on a Atlas rollback drill covering context scenarios in `eu-central` (DOCS-1596).",
+        "FinOps correlated Atlas usage with Ledger exports when reviewing context for `rfcs/rfc_004_multi_region_cells.md` (DOCS-6577)."
+      ],
+      "min_words": 891
+    },
+    {
+      "path": "rfcs/rfc_005_llm_gateway.md",
+      "title": "RFC 005 — Internal LLM Gateway",
+      "type": "rfc",
+      "owner": "AI Platform",
+      "owner_contact": "ml-platform@acmecloud.io",
+      "related_systems": [
+        "Orion",
+        "Gatehouse",
+        "Atlas",
+        "Beacon",
+        "Ledger",
+        "Harbor"
+      ],
+      "related_documents": [
+        "ai-platform/ai_platform_overview.md"
+      ],
+      "required_facts": [
+        "In Q2 2025 multiple teams proposed a centralized LLM gateway to unify rate limiting, prompt logging, and policy enforcement for all model calls across AI Studio.",
+        "Orion already terminated inference traffic; the gateway would sit in front of both Orion and external LLM vendor APIs with Gatehouse-authenticated service accounts.",
+        "Architecture review ARCH-205 tracked three design reviews with Security, SRE, and Finance stakeholders.",
+        "AI Platform validated context on Orion in `eu-central` during the Q1 game day; notes in DOCS-6827.",
+        "Architecture review referenced context when approving the `eu-central` Gatehouse change window (DOCS-4580).",
+        "SRE paired with AI Platform on a Orion rollback drill covering context scenarios in `eu-central` (DOCS-6624).",
+        "Teams duplicated gateway-like middleware in notebooks and batch jobs, creating inconsistent PII redaction and unpredictable token spend visibility in Ledger.",
+        "Orion operators lacked a single choke point for throttling abusive workspaces during incidents."
+      ],
+      "min_words": 879
+    },
+    {
+      "path": "rfcs/rfc_006_kafka_to_mercury_migration.md",
+      "title": "RFC 006 — Kafka to Mercury Migration",
+      "type": "rfc",
+      "owner": "Data Platform",
+      "owner_contact": "data-platform@acmecloud.io",
+      "related_systems": [
+        "Mercury",
+        "Harbor",
+        "Atlas",
+        "Beacon",
+        "Ledger",
+        "Gatehouse"
+      ],
+      "related_documents": [
+        "data-platform/streaming_pipeline_guide.md",
+        "rfc_004_multi_region_cells.md"
+      ],
+      "required_facts": [
+        "Kafka operational burden motivated migration discussion before Mercury maturity.",
+        "Data Platform drafted RFC-006 after production signals indicated the decision could no longer be deferred.",
+        "Systems in scope: Mercury, Harbor. Architecture review ticket ARCH-254 tracks stakeholder sign-off.",
+        "Customer commitments and EU data residency constraints were weighed alongside operational cost.",
+        "Stakeholders from Security, SRE, Finance, and Support reviewed impact on customer SLAs before the vote.",
+        "Data Platform validated context on Mercury in `us-east` during the Q1 game day; notes in DOCS-9605.",
+        "SRE paired with Data Platform on a Mercury rollback drill covering context scenarios in `eu-central` (DOCS-7765).",
+        "FinOps correlated Mercury usage with Ledger exports when reviewing context for `rfcs/rfc_006_kafka_to_mercury_migration.md` (DOCS-7243)."
+      ],
+      "min_words": 881
+    },
+    {
+      "path": "security/access_management.md",
+      "title": "Access Management",
+      "type": "handbook",
+      "owner": "Security",
+      "owner_contact": "security-access@acmecloud.io",
+      "related_systems": [
+        "Atlas",
+        "Ledger",
+        "Gatehouse"
+      ],
+      "related_documents": [
+        "policies/security_policy.md",
+        "procedures/access_provisioning.md",
+        "data-platform/workspace_isolation.md"
+      ],
+      "required_facts": [
+        "Access Management is the Security reference for how teams build, ship, and operate software at AcmeCloud.",
+        "It complements platform runbooks and applies to engineers working with Gatehouse, Atlas across all regional cells.",
+        "New hires complete LMS training modules referencing `security/access_management.md` before receiving Gatehouse production elevation.",
+        "Security validated overview on Gatehouse in `us-west` during the Q1 game day; notes in DOCS-5007.",
+        "FinOps correlated Gatehouse usage with Ledger exports when reviewing overview for `security/access_management.md` (DOCS-2586).",
+        "Security attested Gatehouse groups tied to overview remained least-privilege after the `us-west` audit (DOCS-3870).",
+        "SRE paired with Security on a Gatehouse rollback drill covering overview scenarios in `us-west` (DOCS-5608).",
+        "**Gatehouse:** Gatehouse provisions SSO, RBAC groups, workspace ACLs, and service accounts. Teams document exceptions in Jira with Security review when Gatehouse access patterns change."
+      ],
+      "min_words": 650
+    },
+    {
+      "path": "security/customer_data_handling.md",
+      "title": "Customer Data Handling",
+      "type": "handbook",
+      "owner": "Security",
+      "owner_contact": "security@acmecloud.io",
+      "related_systems": [
+        "Atlas",
+        "Ledger",
+        "Gatehouse",
+        "Harbor"
+      ],
+      "related_documents": [
+        "data_classification.md",
+        "data-platform/data_platform_overview.md",
+        "support/support_slas.md"
+      ],
+      "required_facts": [
+        "Customer Data Handling is the Security reference for how teams build, ship, and operate software at AcmeCloud.",
+        "It complements platform runbooks and applies to engineers working with Gatehouse, Atlas across all regional cells.",
+        "New hires complete LMS training modules referencing `security/customer_data_handling.md` before receiving Gatehouse production elevation.",
+        "Security validated overview on Gatehouse in `us-west` during the Q1 game day; notes in DOCS-9989.",
+        "FinOps correlated Gatehouse usage with Ledger exports when reviewing overview for `security/customer_data_handling.md` (DOCS-9110).",
+        "Security attested Gatehouse groups tied to overview remained least-privilege after the `us-west` audit (DOCS-5741).",
+        "SRE paired with Security on a Gatehouse rollback drill covering overview scenarios in `us-west` (DOCS-3415).",
+        "**Residency:** EU data stays in eu-central cell per RFC-004. Teams document exceptions in Jira with Security review when Gatehouse access patterns change."
+      ],
+      "min_words": 650
+    },
+    {
+      "path": "security/data_classification.md",
+      "title": "Data Classification",
+      "type": "handbook",
+      "owner": "Security",
+      "owner_contact": "data-governance@acmecloud.io",
+      "related_systems": [
+        "Atlas",
+        "Ledger",
+        "Gatehouse",
+        "Harbor"
+      ],
+      "related_documents": [
+        "procedures/data_access_request.md",
+        "customer_data_handling.md",
+        "data-platform/workspace_isolation.md"
+      ],
+      "required_facts": [
+        "Data Classification is the Security reference for how teams build, ship, and operate software at AcmeCloud.",
+        "It complements platform runbooks and applies to engineers working with Gatehouse, Atlas across all regional cells.",
+        "New hires complete LMS training modules referencing `security/data_classification.md` before receiving Gatehouse production elevation.",
+        "Security validated overview on Gatehouse in `eu-central` during the Q1 game day; notes in DOCS-2449.",
+        "FinOps correlated Gatehouse usage with Ledger exports when reviewing overview for `security/data_classification.md` (DOCS-1337).",
+        "Security attested Gatehouse groups tied to overview remained least-privilege after the `eu-central` audit (DOCS-7084).",
+        "SRE paired with Security on a Gatehouse rollback drill covering overview scenarios in `eu-central` (DOCS-8730).",
+        "**Labels:** Public, internal, confidential, restricted. Teams document exceptions in Jira with Security review when Gatehouse access patterns change."
+      ],
+      "min_words": 650
+    },
+    {
+      "path": "security/secrets_management.md",
+      "title": "Secrets Management",
+      "type": "handbook",
+      "owner": "Security",
+      "owner_contact": "security@acmecloud.io",
+      "related_systems": [
+        "Atlas",
+        "Ledger",
+        "Gatehouse"
+      ],
+      "related_documents": [
+        "policies/security_policy.md",
+        "access_management.md",
+        "engineering/code_review_guidelines.md"
+      ],
+      "required_facts": [
+        "Secrets Management is the Security reference for how teams build, ship, and operate software at AcmeCloud.",
+        "It complements platform runbooks and applies to engineers working with Gatehouse, Atlas across all regional cells.",
+        "New hires complete LMS training modules referencing `security/secrets_management.md` before receiving Gatehouse production elevation.",
+        "Security validated overview on Gatehouse in `us-east` during the Q1 game day; notes in DOCS-3806.",
+        "FinOps correlated Gatehouse usage with Ledger exports when reviewing overview for `security/secrets_management.md` (DOCS-3799).",
+        "Security attested Gatehouse groups tied to overview remained least-privilege after the `us-east` audit (DOCS-6613).",
+        "SRE paired with Security on a Gatehouse rollback drill covering overview scenarios in `us-east` (DOCS-7205).",
+        "**Vault:** Central secrets vault with rotation policies. Teams document exceptions in Jira with Security review when Gatehouse access patterns change."
+      ],
+      "min_words": 650
+    },
+    {
+      "path": "security/security_incident_bridge.md",
+      "title": "Security Incident Bridge",
+      "type": "handbook",
+      "owner": "Security",
+      "owner_contact": "security@acmecloud.io",
+      "related_systems": [
+        "Atlas",
+        "Ledger",
+        "Gatehouse"
+      ],
+      "related_documents": [
+        "procedures/incident_response.md",
+        "policies/security_policy.md",
+        "postmortems/2025-08-12-gatehouse-auth-outage.md"
+      ],
+      "required_facts": [
+        "Security Incident Bridge is the Security reference for how teams build, ship, and operate software at AcmeCloud.",
+        "It complements platform runbooks and applies to engineers working with Gatehouse, Atlas across all regional cells.",
+        "New hires complete LMS training modules referencing `security/security_incident_bridge.md` before receiving Gatehouse production elevation.",
+        "Security validated overview on Gatehouse in `us-east` during the Q1 game day; notes in DOCS-9552.",
+        "FinOps correlated Gatehouse usage with Ledger exports when reviewing overview for `security/security_incident_bridge.md` (DOCS-3821).",
+        "Security attested Gatehouse groups tied to overview remained least-privilege after the `us-east` audit (DOCS-8999).",
+        "SRE paired with Security on a Gatehouse rollback drill covering overview scenarios in `us-east` (DOCS-2621).",
+        "**Join criteria:** Data breach, Gatehouse compromise, forensics needed. Teams document exceptions in Jira with Security review when Gatehouse access patterns change."
+      ],
+      "min_words": 650
+    },
+    {
+      "path": "security/vendor_security_review.md",
+      "title": "Vendor Security Review",
+      "type": "handbook",
+      "owner": "Security",
+      "owner_contact": "vendor-security@acmecloud.io",
+      "related_systems": [
+        "Atlas",
+        "Ledger",
+        "Gatehouse"
+      ],
+      "related_documents": [
+        "finance/procurement_policy.md",
+        "access_management.md",
+        "company/company_overview.md"
+      ],
+      "required_facts": [
+        "Vendor Security Review is the Security reference for how teams build, ship, and operate software at AcmeCloud.",
+        "It complements platform runbooks and applies to engineers working with Gatehouse, Atlas across all regional cells.",
+        "New hires complete LMS training modules referencing `security/vendor_security_review.md` before receiving Gatehouse production elevation.",
+        "Security validated overview on Gatehouse in `us-east` during the Q1 game day; notes in DOCS-1574.",
+        "FinOps correlated Gatehouse usage with Ledger exports when reviewing overview for `security/vendor_security_review.md` (DOCS-4949).",
+        "Security attested Gatehouse groups tied to overview remained least-privilege after the `us-east` audit (DOCS-2791).",
+        "SRE paired with Security on a Gatehouse rollback drill covering overview scenarios in `us-east` (DOCS-8080).",
+        "**Process:** Security questionnaire and SOC 2 review before procurement. Teams document exceptions in Jira with Security review when Gatehouse access patterns change."
+      ],
+      "min_words": 650
+    },
+    {
+      "path": "security/vulnerability_management.md",
+      "title": "Vulnerability Management",
+      "type": "handbook",
+      "owner": "Security",
+      "owner_contact": "security@acmecloud.io",
+      "related_systems": [
+        "Atlas",
+        "Ledger",
+        "Gatehouse"
+      ],
+      "related_documents": [
+        "access_management.md",
+        "engineering/testing_strategy.md",
+        "sre/change_management.md"
+      ],
+      "required_facts": [
+        "Vulnerability Management is the Security reference for how teams build, ship, and operate software at AcmeCloud.",
+        "It complements platform runbooks and applies to engineers working with Gatehouse, Atlas across all regional cells.",
+        "New hires complete LMS training modules referencing `security/vulnerability_management.md` before receiving Gatehouse production elevation.",
+        "Security validated overview on Gatehouse in `eu-central` during the Q1 game day; notes in DOCS-3403.",
+        "FinOps correlated Gatehouse usage with Ledger exports when reviewing overview for `security/vulnerability_management.md` (DOCS-1685).",
+        "Security attested Gatehouse groups tied to overview remained least-privilege after the `eu-central` audit (DOCS-2247).",
+        "SRE paired with Security on a Gatehouse rollback drill covering overview scenarios in `eu-central` (DOCS-4485).",
+        "**Scanning:** Weekly container and dependency scans. Teams document exceptions in Jira with Security review when Gatehouse access patterns change."
+      ],
+      "min_words": 650
+    },
+    {
+      "path": "sre/capacity_planning.md",
+      "title": "Capacity Planning",
+      "type": "handbook",
+      "owner": "SRE",
+      "owner_contact": "sre-capacity@acmecloud.io",
+      "related_systems": [
+        "Atlas",
+        "Beacon",
+        "Mercury",
+        "Orion",
+        "Ledger",
+        "Gatehouse",
+        "Harbor"
+      ],
+      "related_documents": [
+        "finance/cloud_spend_governance.md",
+        "data-platform/data_platform_overview.md",
+        "deployment_runbook.md"
+      ],
+      "required_facts": [
+        "Capacity Planning is the SRE reference for how teams build, ship, and operate software at AcmeCloud.",
+        "It complements platform runbooks and applies to engineers working with Atlas, Beacon, Gatehouse across all regional cells.",
+        "New hires complete LMS training modules referencing `sre/capacity_planning.md` before receiving Gatehouse production elevation.",
+        "SRE validated overview on Atlas in `us-east` during the Q1 game day; notes in DOCS-9688.",
+        "FinOps correlated Atlas usage with Ledger exports when reviewing overview for `sre/capacity_planning.md` (DOCS-9310).",
+        "Security attested Gatehouse groups tied to overview remained least-privilege after the `us-east` audit (DOCS-2028).",
+        "SRE paired with SRE on a Atlas rollback drill covering overview scenarios in `us-east` (DOCS-4545).",
+        "**Forecast:** Quarterly capacity models for Harbor, Mercury, Orion, Beacon. Teams document exceptions in Jira with Security review when Atlas access patterns change."
+      ],
+      "min_words": 650
+    },
+    {
+      "path": "sre/change_management.md",
+      "title": "Change Management",
+      "type": "handbook",
+      "owner": "SRE",
+      "owner_contact": "sre-changes@acmecloud.io",
+      "related_systems": [
+        "Atlas",
+        "Beacon",
+        "Ledger",
+        "Gatehouse"
+      ],
+      "related_documents": [
+        "deployment_runbook.md",
+        "procedures/emergency_change_process.md",
+        "engineering/branching_and_release_strategy.md"
+      ],
+      "required_facts": [
+        "Change Management is the SRE reference for how teams build, ship, and operate software at AcmeCloud.",
+        "It complements platform runbooks and applies to engineers working with Atlas, Beacon, Gatehouse across all regional cells.",
+        "New hires complete LMS training modules referencing `sre/change_management.md` before receiving Gatehouse production elevation.",
+        "SRE validated overview on Atlas in `us-east` during the Q1 game day; notes in DOCS-5279.",
+        "FinOps correlated Atlas usage with Ledger exports when reviewing overview for `sre/change_management.md` (DOCS-8240).",
+        "Security attested Gatehouse groups tied to overview remained least-privilege after the `us-east` audit (DOCS-1756).",
+        "SRE paired with SRE on a Atlas rollback drill covering overview scenarios in `us-east` (DOCS-8979).",
+        "**CAB:** Weekly change advisory board for production Atlas deploys. Teams document exceptions in Jira with Security review when Atlas access patterns change."
+      ],
+      "min_words": 650
+    },
+    {
+      "path": "sre/deployment_runbook.md",
+      "title": "Deployment Runbook",
+      "type": "runbook",
+      "owner": "SRE",
+      "owner_contact": "sre-deploy@acmecloud.io",
+      "related_systems": [
+        "Atlas",
+        "Beacon",
+        "Orion",
+        "Ledger",
+        "Gatehouse"
+      ],
+      "related_documents": [
+        "change_management.md",
+        "engineering/branching_and_release_strategy.md",
+        "ai-platform/model_serving_runbook.md"
+      ],
+      "required_facts": [
+        "This runbook guides SRE engineers through `Deployment Runbook` for production systems (Atlas, Beacon, Gatehouse).",
+        "Use during planned maintenance or incident mitigation when Atlas behavior must change under time pressure.",
+        "SRE validated purpose on Atlas in `us-east` during the Q1 game day; notes in DOCS-7086.",
+        "Security attested Gatehouse groups tied to purpose remained least-privilege after the `us-west` audit (DOCS-4993).",
+        "Architecture review referenced purpose when approving the `eu-central` Gatehouse change window (DOCS-9540).",
+        "Active Gatehouse session with `sre-deployment_runbook-write` group membership.",
+        "Change ticket DOCS-9690 or active incident bridge for emergency execution.",
+        "Beacon dashboards for Atlas open and recording baseline metrics for `us-east`."
+      ],
+      "min_words": 650
+    },
+    {
+      "path": "sre/disaster_recovery.md",
+      "title": "Disaster Recovery",
+      "type": "handbook",
+      "owner": "SRE",
+      "owner_contact": "sre-dr@acmecloud.io",
+      "related_systems": [
+        "Atlas",
+        "Beacon",
+        "Ledger",
+        "Gatehouse"
+      ],
+      "related_documents": [
+        "rfcs/rfc_004_multi_region_cells.md",
+        "postmortems/2025-02-14-eu-central-outage.md",
+        "deployment_runbook.md"
+      ],
+      "required_facts": [
+        "Disaster Recovery is the SRE reference for how teams build, ship, and operate software at AcmeCloud.",
+        "It complements platform runbooks and applies to engineers working with Atlas, Beacon, Gatehouse across all regional cells.",
+        "New hires complete LMS training modules referencing `sre/disaster_recovery.md` before receiving Gatehouse production elevation.",
+        "SRE validated overview on Atlas in `eu-central` during the Q1 game day; notes in DOCS-3422.",
+        "FinOps correlated Atlas usage with Ledger exports when reviewing overview for `sre/disaster_recovery.md` (DOCS-6395).",
+        "Security attested Gatehouse groups tied to overview remained least-privilege after the `eu-central` audit (DOCS-4588).",
+        "SRE paired with SRE on a Atlas rollback drill covering overview scenarios in `eu-central` (DOCS-9632).",
+        "**RTO/RPO:** Cell-level failover drills quarterly. Teams document exceptions in Jira with Security review when Atlas access patterns change."
+      ],
+      "min_words": 650
+    },
+    {
+      "path": "sre/error_budget_policy.md",
+      "title": "Error Budget Policy",
+      "type": "handbook",
+      "owner": "SRE",
+      "owner_contact": "sre-reliability@acmecloud.io",
+      "related_systems": [
+        "Atlas",
+        "Beacon",
+        "Orion",
+        "Ledger",
+        "Gatehouse"
+      ],
+      "related_documents": [
+        "observability-platform/slo_framework.md",
+        "analytics-platform/analytics_release_process.md",
+        "ai-platform/online_inference_slos.md"
+      ],
+      "required_facts": [
+        "Error Budget Policy is the SRE reference for how teams build, ship, and operate software at AcmeCloud.",
+        "It complements platform runbooks and applies to engineers working with Atlas, Beacon, Gatehouse across all regional cells.",
+        "New hires complete LMS training modules referencing `sre/error_budget_policy.md` before receiving Gatehouse production elevation.",
+        "SRE validated overview on Atlas in `us-east` during the Q1 game day; notes in DOCS-5709.",
+        "FinOps correlated Atlas usage with Ledger exports when reviewing overview for `sre/error_budget_policy.md` (DOCS-1646).",
+        "Security attested Gatehouse groups tied to overview remained least-privilege after the `us-east` audit (DOCS-1196).",
+        "SRE paired with SRE on a Atlas rollback drill covering overview scenarios in `us-east` (DOCS-5520).",
+        "**Freeze:** Exhausted error budget triggers release freeze. Teams document exceptions in Jira with Security review when Atlas access patterns change."
+      ],
+      "min_words": 650
+    },
+    {
+      "path": "sre/incident_management.md",
+      "title": "Incident Management",
+      "type": "handbook",
+      "owner": "SRE",
+      "owner_contact": "sre-incidents@acmecloud.io",
+      "related_systems": [
+        "Atlas",
+        "Beacon",
+        "Ledger",
+        "Gatehouse"
+      ],
+      "related_documents": [
+        "procedures/incident_response.md",
+        "oncall_policy.md",
+        "support/customer_incident_comms.md"
+      ],
+      "required_facts": [
+        "Incident Management is the SRE reference for how teams build, ship, and operate software at AcmeCloud.",
+        "It complements platform runbooks and applies to engineers working with Atlas, Beacon, Gatehouse across all regional cells.",
+        "New hires complete LMS training modules referencing `sre/incident_management.md` before receiving Gatehouse production elevation.",
+        "SRE validated overview on Atlas in `us-east` during the Q1 game day; notes in DOCS-7584.",
+        "FinOps correlated Atlas usage with Ledger exports when reviewing overview for `sre/incident_management.md` (DOCS-2797).",
+        "Security attested Gatehouse groups tied to overview remained least-privilege after the `us-east` audit (DOCS-2222).",
+        "**Roles:** IC, comms lead, scribe definitions. Teams document exceptions in Jira with Security review when Atlas access patterns change.",
+        "**Severity:** Matrix aligned with incident_response severity table. Teams document exceptions in Jira with Security review when Atlas access patterns change."
+      ],
+      "min_words": 650
+    },
+    {
+      "path": "sre/oncall_policy.md",
+      "title": "On-Call Policy",
+      "type": "handbook",
+      "owner": "SRE",
+      "owner_contact": "sre-oncall@acmecloud.io",
+      "related_systems": [
+        "Atlas",
+        "Beacon",
+        "Ledger",
+        "Gatehouse"
+      ],
+      "related_documents": [
+        "procedures/incident_response.md",
+        "incident_management.md",
+        "observability-platform/alerting_and_routing.md"
+      ],
+      "required_facts": [
+        "On-Call Policy is the SRE reference for how teams build, ship, and operate software at AcmeCloud.",
+        "It complements platform runbooks and applies to engineers working with Atlas, Beacon, Gatehouse across all regional cells.",
+        "New hires complete LMS training modules referencing `sre/oncall_policy.md` before receiving Gatehouse production elevation.",
+        "SRE validated overview on Atlas in `us-west` during the Q1 game day; notes in DOCS-9011.",
+        "FinOps correlated Atlas usage with Ledger exports when reviewing overview for `sre/oncall_policy.md` (DOCS-7729).",
+        "Security attested Gatehouse groups tied to overview remained least-privilege after the `us-west` audit (DOCS-4436).",
+        "**Rotation:** Primary, secondary, shadow rotations in PagerDuty. Teams document exceptions in Jira with Security review when Atlas access patterns change.",
+        "**Escalation:** Primary 15 min, secondary 10 min timeout. Teams document exceptions in Jira with Security review when Atlas access patterns change."
+      ],
+      "min_words": 650
+    },
+    {
+      "path": "sre/postmortem_template.md",
+      "title": "Postmortem Template",
+      "type": "handbook",
+      "owner": "SRE",
+      "owner_contact": "sre-incidents@acmecloud.io",
+      "related_systems": [
+        "Atlas",
+        "Beacon",
+        "Ledger",
+        "Gatehouse"
+      ],
+      "related_documents": [
+        "postmortems/2025-11-03-observability-ingestion-delay.md",
+        "incident_management.md",
+        "procedures/incident_response.md"
+      ],
+      "required_facts": [
+        "Postmortem Template is the SRE reference for how teams build, ship, and operate software at AcmeCloud.",
+        "It complements platform runbooks and applies to engineers working with Atlas, Beacon, Gatehouse across all regional cells.",
+        "New hires complete LMS training modules referencing `sre/postmortem_template.md` before receiving Gatehouse production elevation.",
+        "SRE validated overview on Atlas in `eu-central` during the Q1 game day; notes in DOCS-7644.",
+        "FinOps correlated Atlas usage with Ledger exports when reviewing overview for `sre/postmortem_template.md` (DOCS-5448).",
+        "Security attested Gatehouse groups tied to overview remained least-privilege after the `eu-central` audit (DOCS-4221).",
+        "SRE paired with SRE on a Atlas rollback drill covering overview scenarios in `eu-central` (DOCS-9735).",
+        "**Usage:** Copy template for SEV-1/2 reviews within 5-10 business days. Teams document exceptions in Jira with Security review when Atlas access patterns change."
+      ],
+      "min_words": 650
+    },
+    {
+      "path": "sre/status_page_operations.md",
+      "title": "Status Page Operations",
+      "type": "handbook",
+      "owner": "SRE",
+      "owner_contact": "status-ops@acmecloud.io",
+      "related_systems": [
+        "Atlas",
+        "Beacon",
+        "Ledger",
+        "Gatehouse"
+      ],
+      "related_documents": [
+        "support/customer_incident_comms.md",
+        "procedures/incident_response.md",
+        "incident_management.md"
+      ],
+      "required_facts": [
+        "Status Page Operations is the SRE reference for how teams build, ship, and operate software at AcmeCloud.",
+        "It complements platform runbooks and applies to engineers working with Atlas, Beacon, Gatehouse across all regional cells.",
+        "New hires complete LMS training modules referencing `sre/status_page_operations.md` before receiving Gatehouse production elevation.",
+        "SRE validated overview on Atlas in `us-east` during the Q1 game day; notes in DOCS-9648.",
+        "FinOps correlated Atlas usage with Ledger exports when reviewing overview for `sre/status_page_operations.md` (DOCS-4318).",
+        "Security attested Gatehouse groups tied to overview remained least-privilege after the `us-east` audit (DOCS-5921).",
+        "SRE paired with SRE on a Atlas rollback drill covering overview scenarios in `us-east` (DOCS-3265).",
+        "**Updates:** SEV-1/2 customer messaging coordinated with Support. Teams document exceptions in Jira with Security review when Atlas access patterns change."
+      ],
+      "min_words": 650
+    },
+    {
+      "path": "support/customer_incident_comms.md",
+      "title": "Customer Incident Communications",
+      "type": "handbook",
+      "owner": "Support",
+      "owner_contact": "support-comms@acmecloud.io",
+      "related_systems": [
+        "Atlas",
+        "Ledger",
+        "Gatehouse"
+      ],
+      "related_documents": [
+        "procedures/incident_response.md",
+        "sre/status_page_operations.md",
+        "escalation_matrix.md"
+      ],
+      "required_facts": [
+        "Customer Incident Communications is the Support reference for how teams build, ship, and operate software at AcmeCloud.",
+        "It complements platform runbooks and applies to engineers working with Atlas across all regional cells.",
+        "New hires complete LMS training modules referencing `support/customer_incident_comms.md` before receiving Gatehouse production elevation.",
+        "Support validated overview on Atlas in `eu-central` during the Q1 game day; notes in DOCS-8531.",
+        "FinOps correlated Atlas usage with Ledger exports when reviewing overview for `support/customer_incident_comms.md` (DOCS-7666).",
+        "Security attested Gatehouse groups tied to overview remained least-privilege after the `eu-central` audit (DOCS-9638).",
+        "SRE paired with Support on a Atlas rollback drill covering overview scenarios in `eu-central` (DOCS-8900).",
+        "**Templates:** Status page and email macros for SEV-1/2. Teams document exceptions in Jira with Security review when Atlas access patterns change."
+      ],
+      "min_words": 650
+    },
+    {
+      "path": "support/customer_ticket_handling.md",
+      "title": "Customer Ticket Handling",
+      "type": "handbook",
+      "owner": "Support",
+      "owner_contact": "support@acmecloud.io",
+      "related_systems": [
+        "Atlas",
+        "Ledger",
+        "Gatehouse"
+      ],
+      "related_documents": [
+        "support_tier_structure.md",
+        "product/product_development_lifecycle.md",
+        "policies/code_of_conduct.md"
+      ],
+      "required_facts": [
+        "Customer Ticket Handling is the Support reference for how teams build, ship, and operate software at AcmeCloud.",
+        "It complements platform runbooks and applies to engineers working with Atlas across all regional cells.",
+        "New hires complete LMS training modules referencing `support/customer_ticket_handling.md` before receiving Gatehouse production elevation.",
+        "Support validated overview on Atlas in `us-east` during the Q1 game day; notes in DOCS-3458.",
+        "FinOps correlated Atlas usage with Ledger exports when reviewing overview for `support/customer_ticket_handling.md` (DOCS-1608).",
+        "Security attested Gatehouse groups tied to overview remained least-privilege after the `us-east` audit (DOCS-5663).",
+        "SRE paired with Support on a Atlas rollback drill covering overview scenarios in `us-east` (DOCS-6022).",
+        "**Workflow:** Zendesk intake, categorization, knowledge base links. Teams document exceptions in Jira with Security review when Atlas access patterns change."
+      ],
+      "min_words": 650
+    },
+    {
+      "path": "support/escalation_matrix.md",
+      "title": "Support Escalation Matrix",
+      "type": "handbook",
+      "owner": "Support",
+      "owner_contact": "support-escalations@acmecloud.io",
+      "related_systems": [
+        "Atlas",
+        "Ledger",
+        "Gatehouse"
+      ],
+      "related_documents": [
+        "procedures/customer_escalation.md",
+        "sre/oncall_policy.md",
+        "customer_incident_comms.md"
+      ],
+      "required_facts": [
+        "Support Escalation Matrix is the Support reference for how teams build, ship, and operate software at AcmeCloud.",
+        "It complements platform runbooks and applies to engineers working with Atlas across all regional cells.",
+        "New hires complete LMS training modules referencing `support/escalation_matrix.md` before receiving Gatehouse production elevation.",
+        "Support validated overview on Atlas in `eu-central` during the Q1 game day; notes in DOCS-8808.",
+        "FinOps correlated Atlas usage with Ledger exports when reviewing overview for `support/escalation_matrix.md` (DOCS-4938).",
+        "Security attested Gatehouse groups tied to overview remained least-privilege after the `eu-central` audit (DOCS-4571).",
+        "SRE paired with Support on a Atlas rollback drill covering overview scenarios in `eu-central` (DOCS-2911).",
+        "**Paths:** Support to on-call to incident commander. Teams document exceptions in Jira with Security review when Atlas access patterns change."
+      ],
+      "min_words": 650
+    },
+    {
+      "path": "support/support_slas.md",
+      "title": "Support SLAs",
+      "type": "handbook",
+      "owner": "Support",
+      "owner_contact": "support@acmecloud.io",
+      "related_systems": [
+        "Atlas",
+        "Ledger",
+        "Gatehouse"
+      ],
+      "related_documents": [
+        "data-platform/sla_and_freshness.md",
+        "ai-platform/online_inference_slos.md",
+        "escalation_matrix.md"
+      ],
+      "required_facts": [
+        "Support SLAs is the Support reference for how teams build, ship, and operate software at AcmeCloud.",
+        "It complements platform runbooks and applies to engineers working with Atlas across all regional cells.",
+        "New hires complete LMS training modules referencing `support/support_slas.md` before receiving Gatehouse production elevation.",
+        "Support validated overview on Atlas in `us-east` during the Q1 game day; notes in DOCS-3588.",
+        "FinOps correlated Atlas usage with Ledger exports when reviewing overview for `support/support_slas.md` (DOCS-2886).",
+        "Security attested Gatehouse groups tied to overview remained least-privilege after the `us-east` audit (DOCS-8342).",
+        "SRE paired with Support on a Atlas rollback drill covering overview scenarios in `us-east` (DOCS-7654).",
+        "**Customer SLA:** Customer-facing response and resolution targets — distinct from internal SLOs. Teams document exceptions in Jira with Security review when Atlas access patterns change."
+      ],
+      "min_words": 650
+    },
+    {
+      "path": "support/support_tier_structure.md",
+      "title": "Support Tier Structure",
+      "type": "handbook",
+      "owner": "Support",
+      "owner_contact": "support@acmecloud.io",
+      "related_systems": [
+        "Atlas",
+        "Ledger",
+        "Gatehouse"
+      ],
+      "related_documents": [
+        "escalation_matrix.md",
+        "support_slas.md",
+        "company/product_portfolio.md"
+      ],
+      "required_facts": [
+        "Support Tier Structure is the Support reference for how teams build, ship, and operate software at AcmeCloud.",
+        "It complements platform runbooks and applies to engineers working with Atlas across all regional cells.",
+        "New hires complete LMS training modules referencing `support/support_tier_structure.md` before receiving Gatehouse production elevation.",
+        "Support validated overview on Atlas in `eu-central` during the Q1 game day; notes in DOCS-6193.",
+        "FinOps correlated Atlas usage with Ledger exports when reviewing overview for `support/support_tier_structure.md` (DOCS-2945).",
+        "Security attested Gatehouse groups tied to overview remained least-privilege after the `eu-central` audit (DOCS-4605).",
+        "SRE paired with Support on a Atlas rollback drill covering overview scenarios in `eu-central` (DOCS-7533).",
+        "**Tiers:** Tier 1 frontline, Tier 2 product specialists, Tier 3 engineering. Teams document exceptions in Jira with Security review when Atlas access patterns change."
+      ],
+      "min_words": 650
+    }
+  ]
+}

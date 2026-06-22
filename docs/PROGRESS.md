@@ -4,13 +4,32 @@ Chronological record of completed milestones for Production RAG Knowledge Assist
 
 ---
 
-## Current Status (2026-06-21)
+## Current Status (2026-06-22)
 
-**Latest completed plan:** [Plan 13 — Evaluation Framework](plans/completed/13-evaluation-framework.md) (Phase 8 — Evaluation).
+**Latest completed plan:** [Plan 14 — Synthetic Corporate Knowledge Base](plans/completed/14-synthetic-knowledge-base.md) (Phase 9 — Synthetic Knowledge Base).
 
-**Authorized implementation scope:** none — `docs/plans/active/` is empty. Next roadmap phase is **Phase 9 — Demo Dataset** ([ROADMAP.md](plans/backlog/ROADMAP.md)).
+**Current phase:** Phase 10 — Demo Bootstrap Workflow ([ROADMAP.md](plans/backlog/ROADMAP.md)).
 
-**Deferred from Plan 12:** query rewriting and retrieval retry (proposed Plan 12b), MCP SDK transport (proposed Plan 12c), CLI chat UX.
+**Authorized implementation scope:** None — activate the next plan from backlog before implementing.
+
+**Deferred from Plan 12:** query rewriting and retrieval retry (proposed Plan 12b), MCP SDK transport (proposed Plan 12c), interactive CLI chat (Plan 19).
+
+---
+
+## 2026-06-22 — Tracked Corpus Generator
+
+**Plan:** [14-synthetic-knowledge-base.md](plans/completed/14-synthetic-knowledge-base.md)
+
+Revised corpus generation for reproducibility:
+
+* tracked generator assets under `tools/knowledge_generator/`;
+* `tools/knowledge_generator/manifests/corpus.v1.yaml` is the single source of truth for the 96-document inventory, paths, types, owners, related systems, related documents, required facts, and benchmark alignment metadata;
+* document-type prompt templates live under `tools/knowledge_generator/templates/`;
+* quality gates live under `tools/knowledge_generator/quality/`;
+* regeneration command is `python3 tools/knowledge_generator/generator.py`;
+* generated corpus remains local under gitignored `knowledge/`; fresh clones can regenerate it from tracked assets.
+
+Latest generator run produced 97 markdown files (96 documents plus `knowledge/README.md`) and passed quality gates: duplicate paragraphs 0, duplicate sentences 205, average repeated sentence ratio 3.91%, average section title diversity 100.00%, known filler phrase hits 0, distinct section structures 96.
 
 ---
 

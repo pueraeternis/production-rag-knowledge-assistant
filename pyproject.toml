@@ -50,10 +50,11 @@ select = [
 quote-style = "double"
 
 [tool.basedpyright]
-include = ["src/knowledge_assistant", "tests"]
+include = ["src/knowledge_assistant", "tests", "tools/knowledge_generator"]
+exclude = [".local", ".venv"]
 pythonVersion = "3.12"
 typeCheckingMode = "strict"
-extraPaths = ["src"]
+extraPaths = ["src", "tools/knowledge_generator"]
 venvPath = "."
 venv = ".venv"
 
