@@ -20,10 +20,16 @@ from knowledge_assistant.agent.state import (
     graph_output_to_state,
     state_to_graph_input,
 )
+from knowledge_assistant.agent.streaming import ConcreteTurnStream
 from knowledge_assistant.agent.tools import ToolRegistry, tool_error_content
+from knowledge_assistant.agent.turn import (
+    TurnResult,
+    collect_sources_from_messages,
+    messages_added_during_turn,
+)
 from knowledge_assistant.llm.config import GenerationSettings
 from knowledge_assistant.llm.messages import ChatMessage, ChatRole
-from knowledge_assistant.llm.protocol import LLMClient
+from knowledge_assistant.llm.protocol import LLMClient, StreamingLLMClient
 
 _MAX_ITERATIONS_MESSAGE = (
     "Tool iteration limit reached. Unable to complete additional tool calls."
@@ -127,12 +133,13 @@ def run_turn(
     llm_client: LLMClient,
     tool_registry: ToolRegistry,
     settings: AgentSettings | None = None,
-) -> AgentState:
-    """Append user message, invoke LangGraph, and return updated state."""
+) -> TurnResult:
+    """Append user message, invoke LangGraph, and return a completed turn."""
     if not user_message.strip():
         msg = "user_message must be non-empty"
         raise ValueError(msg)
 
+    state_before_turn = state
     user_chat_message = ChatMessage(role=ChatRole.USER, content=user_message)
     input_state = AgentState(
         messages=(*state.messages, user_chat_message),
@@ -147,4 +154,44 @@ def run_turn(
         settings=settings,
     )
     output = cast("GraphState", graph.invoke(state_to_graph_input(input_state)))
-    return graph_output_to_state(output)
+    output_state = graph_output_to_state(output)
+    turn_messages = messages_added_during_turn(state_before_turn, output_state)
+    sources = collect_sources_from_messages(turn_messages)
+    answer = output_state.final_response or ""
+    return TurnResult(state=output_state, answer=answer, sources=sources)
+
+
+def run_turn_streaming(
+    *,
+    state: AgentState,
+    user_message: str,
+    llm_client: LLMClient,
+    tool_registry: ToolRegistry,
+    settings: AgentSettings | None = None,
+) -> ConcreteTurnStream:
+    """Execute a streaming turn using the tool loop plus final ``stream_chat``."""
+    if not user_message.strip():
+        msg = "user_message must be non-empty"
+        raise ValueError(msg)
+
+    if not isinstance(llm_client, StreamingLLMClient):
+        msg = (
+            "streaming requested but LLM client does not implement "
+            "StreamingLLMClient; use --no-stream"
+        )
+        raise TypeError(msg)
+
+    user_chat_message = ChatMessage(role=ChatRole.USER, content=user_message)
+    working_state = AgentState(
+        messages=(*state.messages, user_chat_message),
+        tool_iteration_count=state.tool_iteration_count,
+        final_response=None,
+        pending_tool_calls=(),
+    )
+    return ConcreteTurnStream(
+        state_before_turn=state,
+        working_state=working_state,
+        llm_client=llm_client,
+        tool_registry=tool_registry,
+        settings=settings or AgentSettings(),
+    )

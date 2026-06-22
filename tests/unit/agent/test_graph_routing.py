@@ -209,13 +209,14 @@ class TestRunTurn:
         llm = StubLLMClient(
             responses=(GenerationResult(content="Direct answer"),),
         )
-        result = run_turn(
+        turn_result = run_turn(
             state=_system_state(),
             user_message="hello",
             llm_client=llm,
             tool_registry=ToolRegistry(),
         )
 
-        assert result.messages[1].role is ChatRole.USER
-        assert result.messages[1].content == "hello"
-        assert result.final_response == "Direct answer"
+        assert turn_result.state.messages[1].role is ChatRole.USER
+        assert turn_result.state.messages[1].content == "hello"
+        assert turn_result.state.final_response == "Direct answer"
+        assert turn_result.answer == "Direct answer"

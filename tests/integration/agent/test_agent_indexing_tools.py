@@ -43,7 +43,7 @@ class TestAgentIndexingTools:
             ),
         )
 
-        result = run_turn(
+        turn_result = run_turn(
             state=initial_state,
             user_message="Preview indexing docs/handbook.md",
             llm_client=llm,
@@ -51,7 +51,7 @@ class TestAgentIndexingTools:
         )
 
         fake_indexing_pipeline.preview_indexing.assert_called_once()
-        assert result.final_response == "Preview complete: 4 chunks."
+        assert turn_result.answer == "Preview complete: 4 chunks."
 
     def test_apply_without_approval_returns_tool_error(
         self,
@@ -88,7 +88,7 @@ class TestAgentIndexingTools:
             ),
         )
 
-        result = run_turn(
+        turn_result = run_turn(
             state=initial_state,
             user_message="Apply indexing now",
             llm_client=llm,
@@ -99,7 +99,7 @@ class TestAgentIndexingTools:
         tool_payload = json.loads(
             next(
                 message.content
-                for message in result.messages
+                for message in turn_result.state.messages
                 if message.tool_call_id == "call-apply"
             )
             or "{}",

@@ -43,7 +43,7 @@ class TestAgentSearchFlow:
             ),
         )
 
-        result = run_turn(
+        turn_result = run_turn(
             state=initial_state,
             user_message="What is the remote work policy?",
             llm_client=llm,
@@ -52,14 +52,18 @@ class TestAgentSearchFlow:
 
         fake_retriever.retrieve.assert_called_once()
         tool_messages = [
-            message for message in result.messages if message.role is ChatRole.TOOL
+            message
+            for message in turn_result.state.messages
+            if message.role is ChatRole.TOOL
         ]
         assert len(tool_messages) == 1
         payload = json.loads(tool_messages[0].content or "{}")
         assert payload["hits"][0]["source"]["document_title"] == "Employee Handbook"
         assert payload["hits"][0]["source"]["document_path"] == "docs/handbook.md"
-        assert result.final_response is not None
-        assert "remote work" in result.final_response.lower()
+        assert turn_result.state.final_response is not None
+        assert "remote work" in turn_result.answer.lower()
+        assert len(turn_result.sources) == 1
+        assert turn_result.sources[0].document_title == "Employee Handbook"
 
     def test_conversational_turn_without_tools(
         self,
@@ -70,12 +74,14 @@ class TestAgentSearchFlow:
             responses=(GenerationResult(content="Hello! How can I help?"),),
         )
 
-        result = run_turn(
+        turn_result = run_turn(
             state=initial_state,
             user_message="Hi there",
             llm_client=llm,
             tool_registry=tool_registry,
         )
 
-        assert result.final_response == "Hello! How can I help?"
-        assert not any(message.role is ChatRole.TOOL for message in result.messages)
+        assert turn_result.answer == "Hello! How can I help?"
+        assert not any(
+            message.role is ChatRole.TOOL for message in turn_result.state.messages
+        )

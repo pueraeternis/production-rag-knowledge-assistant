@@ -11,12 +11,14 @@ from knowledge_assistant.llm.messages import (
     ChatMessage,
     ChatRole,
     GenerationResult,
+    StreamChunk,
     TokenUsage,
     ToolCall,
     ToolDefinition,
 )
 from knowledge_assistant.llm.openai_client import OpenAICompatibleLLMClient
-from knowledge_assistant.llm.protocol import LLMClient
+from knowledge_assistant.llm.protocol import LLMClient, StreamingLLMClient
+from knowledge_assistant.llm.streaming_stub_client import StreamingStubLLMClient
 from knowledge_assistant.llm.stub_client import StubLLMClient
 
 __all__ = [
@@ -24,15 +26,18 @@ __all__ = [
     "ChatRole",
     "GenerationResult",
     "GenerationSettings",
+    "LLMAuthenticationError",
     "LLMClient",
     "LLMError",
-    "LLMAuthenticationError",
     "LLMResponseError",
     "LLMTimeoutError",
     "LlmSettings",
     "OpenAICompatibleLLMClient",
+    "StreamChunk",
+    "StreamingLLMClient",
+    "StreamingStubLLMClient",
     "StubLLMClient",
+    "TokenUsage",
     "ToolCall",
     "ToolDefinition",
-    "TokenUsage",
 ]

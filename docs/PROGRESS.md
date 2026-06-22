@@ -6,13 +6,31 @@ Chronological record of completed milestones for Production RAG Knowledge Assist
 
 ## Current Status (2026-06-22)
 
-**Latest completed plan:** [Plan 18 — Retrieval Strategy Evaluation](plans/completed/18-retrieval-strategy-evaluation.md) (Phase 13 — End-to-End Evaluation).
+**Latest completed plan:** [Plan 19 — Interactive Chat Demo](plans/completed/19-interactive-chat-demo.md) (Phase 14 — Interactive Chat Experience).
 
-**Current phase:** Phase 14 — Interactive Chat Experience ([ROADMAP.md](plans/backlog/ROADMAP.md)).
+**Current phase:** Phase 14 complete. See [ROADMAP.md](plans/backlog/ROADMAP.md) for future direction.
 
-**Authorized implementation scope:** see [docs/plans/active/](plans/active/) (none when no plan is active).
+**Authorized implementation scope:** none (no active plan).
 
-**Deferred from Plan 12:** query rewriting and retrieval retry (proposed Plan 12b), MCP SDK transport (proposed Plan 12c), interactive CLI chat (Plan 19).
+**Deferred from Plan 12:** query rewriting and retrieval retry (proposed Plan 12b), MCP SDK transport (proposed Plan 12c).
+
+---
+
+## 2026-06-22 — Interactive Chat Demo
+
+**Plan:** [19-interactive-chat-demo.md](plans/completed/19-interactive-chat-demo.md)
+
+Delivered the lecture interactive chat path:
+
+* added `StreamingLLMClient` capability and SSE streaming to `OpenAICompatibleLLMClient` without changing Plan 11 `LLMClient.chat()`;
+* added `TurnSource`, `TurnResult`, `TurnStream`, and streaming turn execution strategy (no LangGraph topology changes);
+* added `bootstrap/chat.py` with `ChatSession`, `build_chat_session()`, and turn facades;
+* added `rag chat` CLI with streaming REPL, `--message`, `--no-stream`, `--no-sources`, configuration banner, and precondition checks (no startup LLM probe);
+* CLI consumes `TurnStream` and renders sources from `TurnResult.sources` only;
+* recorded ADR-042 through ADR-046 (Plan 12 carryover) and ADR-071 through ADR-080 in `docs/DECISIONS.md`;
+* documented chat workflow in `docs/ARCHITECTURE.md` and `README.md`;
+* unit and integration tests for streaming, chat session, CLI parsing, preconditions, and end-to-end stub chat;
+* validation suite passed: ruff format, ruff check, basedpyright, pytest (566 tests, 3 deselected model markers).
 
 ---
 
@@ -330,7 +348,7 @@ Established the LangGraph conversational agent in `knowledge_assistant.agent`:
 
 Plan 12 uses in-process MCP handler adapters (ADR-043 design) rather than MCP SDK transport. Query rewriting, retrieval retry, durable memory, and CLI chat remain deferred per plan non-scope.
 
-**Documentation follow-up (outstanding):** accept ADR-042 through ADR-046 in `docs/DECISIONS.md`.
+**Documentation follow-up (outstanding):** none — ADR-042 through ADR-046 accepted in Plan 19 (`docs/DECISIONS.md`).
 
 ---
 

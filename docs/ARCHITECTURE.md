@@ -558,6 +558,7 @@ build_retriever_for_strategy(env, strategy)   ← Plan 18 (dense/sparse/fusion/r
 | `config.py` | `BootstrapSettings` — corpus root, Qdrant URL, collection name, vector dimensions, `embedding_mode`, reranker mode/settings |
 | `environment.py` | `DemoEnvironment`, `build_demo_environment()`, corpus/collection status helpers, pipeline label |
 | `retrievers.py` | `RetrievalStrategy`, `RetrievalStack`, `build_retrieval_stack()`, `build_retriever_for_strategy()` |
+| `chat.py` | `ChatSession`, `build_chat_session()`, `initial_agent_state()`, `execute_turn()`, `execute_turn_streaming()` (Plan 19) |
 
 **Canonical demo retrieval pipeline (ADR-053, ADR-065):** `RerankRetriever(FusionRetriever(DenseRetriever, SparseRetriever), reranker)` where dense providers are stub or real BGE-M3 (Plan 16) and `reranker` is `StubReranker()` by default or `BgeReranker` when `RAG_RERANKER_MODE=real`. `rag demo info` reports embedding and reranker modes in the pipeline label without triggering model loading.
 
@@ -569,11 +570,11 @@ build_retriever_for_strategy(env, strategy)   ← Plan 18 (dense/sparse/fusion/r
 
 **`BootstrapSettings.dense_vector_size`:** read-only view of `storage_settings.dense_vector_size`; indexing and retrieval settings derive from this single source of truth.
 
-**Dependency rule:** bootstrap may import `storage`, `indexing`, `embeddings`, the public `retrieval` package API, and `core`. It must not import `cli`, `agent`, `mcp_server`, `llm`, `evaluation`, `qdrant_client`, LangGraph, MCP SDK, `torch`, or FlagEmbedding directly. Retrieval orchestrators must be imported from `knowledge_assistant.retrieval`, not internal retrieval submodules.
+**Dependency rule:** bootstrap may import `storage`, `indexing`, `embeddings`, the public `retrieval` package API, and `core`. `bootstrap/chat.py` may additionally import `agent`, `llm`, and `mcp_server.config` for chat session assembly (ADR-074). Bootstrap must not import `cli`, `evaluation`, `qdrant_client`, LangGraph, MCP SDK, `torch`, or FlagEmbedding directly (except via existing environment/retriever wiring). Retrieval orchestrators must be imported from `knowledge_assistant.retrieval`, not internal retrieval submodules.
 
-**Consumers:** `cli` (demo and evaluate commands), tests, and future `rag chat` wiring. Bootstrap complements but does not replace `agent/wiring.py` MCP adapters.
+**Consumers:** `cli` (`demo`, `evaluate`, and `chat` commands), tests, and integration fixtures. Bootstrap complements but does not replace `agent/wiring.py` MCP adapters.
 
-See [ADR-051](DECISIONS.md#adr-051-demo-bootstrap-composition-root) through [ADR-070](DECISIONS.md#adr-070-real-model-benchmark-expectations).
+See [ADR-051](DECISIONS.md#adr-051-demo-bootstrap-composition-root) through [ADR-080](DECISIONS.md#adr-080-streaming-mode-selection-no-automatic-fallback).
 
 ---
 
@@ -653,6 +654,48 @@ See [ADR-067](DECISIONS.md#adr-067-retrieval-evaluation-execution-ownership) thr
 
 ---
 
+## CLI Chat Command
+
+Plan 19 delivers interactive streaming chat in `knowledge_assistant.cli.chat`. The `rag` entrypoint exposes `rag chat` with optional `--message`, `--no-stream`, and `--no-sources`. CLI owns REPL UX, `TurnStream` consumption, terminal source rendering, and signals; bootstrap owns `ChatSession` assembly and turn facades; agent owns `TurnResult` / `TurnStream` production.
+
+```text
+rag chat [--message TEXT] [--no-stream] [--no-sources]
+        ↓
+build_chat_session()
+        ↓
+validate corpus + non-empty collection + LlmSettings (no LLM probe)
+        ↓
+configuration banner
+        ↓
+initial_agent_state()  (SYSTEM_PROMPT seeded once)
+        ↓
+REPL or single-turn:
+  execute_turn_streaming → CLI iterates TurnStream → TurnResult
+  (or execute_turn when --no-stream)
+        ↓
+format_turn_sources(TurnResult.sources)   unless --no-sources
+```
+
+| Flag | Default | Purpose |
+| ---- | ------- | ------- |
+| `--message TEXT` | none | Single-turn; skip REPL |
+| `--no-stream` | false | Use `execute_turn` / `chat()` only |
+| `--no-sources` | false | Omit post-turn Sources block |
+
+**Streaming ownership (ADR-078):** `StreamingLLMClient.stream_chat()` in `llm/`; tool-loop rounds use sync `chat()`; final answer streams when enabled. LangGraph topology is unchanged — no new nodes, routes, or `GraphState` fields.
+
+**Turn result boundary (ADR-075):** `TurnResult` carries `state`, `answer`, and structured `TurnSource` tuples extracted during turn execution. CLI must not reparse MCP JSON from `AgentState.messages`.
+
+**Preconditions (ADR-077):** missing corpus, empty collection, or invalid LLM configuration → exit `3`. LLM reachability failures on first turn → exit `1` (single-turn) or stderr error (REPL).
+
+**Exit codes:** `0` success; `1` turn/operational failure; `2` usage; `3` precondition failure.
+
+**Dependency rule:** `cli/chat.py` may import `knowledge_assistant.bootstrap` and the Python standard library only. `cli/main.py` imports `cli.demo`, `cli.evaluate`, and `cli.chat`.
+
+See [ADR-071](DECISIONS.md#adr-071-chat-execution-ownership) through [ADR-080](DECISIONS.md#adr-080-streaming-mode-selection-no-automatic-fallback).
+
+---
+
 ## Source Layout
 
 ```text
@@ -666,7 +709,7 @@ src/knowledge_assistant/
     storage/        # Qdrant integration
     evaluation/     # retrieval benchmark evaluation and strategy comparison
     bootstrap/      # demo composition root (storage + indexing + retrieval wiring)
-    cli/            # CLI entrypoints (rag demo and evaluate commands)
+    cli/            # CLI entrypoints (rag demo, evaluate, and chat commands)
 ```
 
 ---

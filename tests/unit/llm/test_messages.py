@@ -70,14 +70,18 @@ def test_tool_call_requires_json_object_arguments() -> None:
 
 
 @pytest.mark.parametrize(
-    ("arguments", "match"),
+    ("arguments", "match", "error_type"),
     [
-        ("not-json", "valid JSON"),
-        ('["list"]', "JSON object"),
+        ("not-json", "valid JSON", ValueError),
+        ('["list"]', "JSON object", TypeError),
     ],
 )
-def test_tool_call_rejects_invalid_arguments(arguments: str, match: str) -> None:
-    with pytest.raises(ValueError, match=match):
+def test_tool_call_rejects_invalid_arguments(
+    arguments: str,
+    match: str,
+    error_type: type[Exception],
+) -> None:
+    with pytest.raises(error_type, match=match):
         ToolCall(id="call-1", name="search_documents", arguments=arguments)
 
 

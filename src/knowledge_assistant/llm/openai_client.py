@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import json
-from typing import Any, cast
+from collections.abc import Iterator
+from typing import Any, Self, cast
 
 import httpx
 
@@ -17,6 +18,7 @@ from knowledge_assistant.llm.exceptions import (
 from knowledge_assistant.llm.messages import (
     ChatMessage,
     GenerationResult,
+    StreamChunk,
     TokenUsage,
     ToolCall,
     ToolDefinition,
@@ -45,7 +47,7 @@ def _merge_generation_settings(
         if overrides.max_tokens is not None
         else defaults.max_tokens
     )
-    stop = overrides.stop if overrides.stop else defaults.stop
+    stop = overrides.stop or defaults.stop
 
     body: dict[str, object] = {
         "model": model,
@@ -101,18 +103,18 @@ def _parse_tool_calls(raw_tool_calls: object) -> tuple[ToolCall, ...]:
         msg = "tool_calls must be a list"
         raise LLMResponseError(msg)
 
-    entries = cast(list[object], raw_tool_calls)
+    entries = cast("list[object]", raw_tool_calls)
     parsed: list[ToolCall] = []
     for entry_obj in entries:
         if not isinstance(entry_obj, dict):
             msg = "tool_calls entry must be an object"
             raise LLMResponseError(msg)
-        entry = cast(dict[str, Any], entry_obj)
+        entry = cast("dict[str, Any]", entry_obj)
         function_obj = entry.get("function")
         if not isinstance(function_obj, dict):
             msg = "tool_calls entry is missing function object"
             raise LLMResponseError(msg)
-        function = cast(dict[str, Any], function_obj)
+        function = cast("dict[str, Any]", function_obj)
         tool_id = entry.get("id")
         name = function.get("name")
         arguments = function.get("arguments")
@@ -139,7 +141,7 @@ def _parse_usage(raw_usage: object) -> TokenUsage | None:
     if not isinstance(raw_usage, dict):
         msg = "usage must be an object"
         raise LLMResponseError(msg)
-    usage = cast(dict[str, Any], raw_usage)
+    usage = cast("dict[str, Any]", raw_usage)
     prompt_tokens = usage.get("prompt_tokens")
     completion_tokens = usage.get("completion_tokens")
     total_tokens = usage.get("total_tokens")
@@ -166,18 +168,18 @@ def parse_chat_response(payload: dict[str, Any]) -> GenerationResult:
         msg = "response choices must be a non-empty list"
         raise LLMResponseError(msg)
 
-    choice_items = cast(list[object], choices)
+    choice_items = cast("list[object]", choices)
     first_choice_obj = choice_items[0]
     if not isinstance(first_choice_obj, dict):
         msg = "choice must be an object"
         raise LLMResponseError(msg)
-    first_choice = cast(dict[str, Any], first_choice_obj)
+    first_choice = cast("dict[str, Any]", first_choice_obj)
 
     message_obj = first_choice.get("message")
     if not isinstance(message_obj, dict):
         msg = "choice is missing message object"
         raise LLMResponseError(msg)
-    message = cast(dict[str, Any], message_obj)
+    message = cast("dict[str, Any]", message_obj)
 
     content_obj = message.get("content")
     content: str | None
@@ -223,6 +225,60 @@ def parse_chat_response(payload: dict[str, Any]) -> GenerationResult:
         model=model,
         usage=usage,
     )
+
+
+def _parse_stream_chunk_payload(payload: dict[str, Any]) -> str | None:
+    """Extract a text delta from one SSE JSON payload."""
+    choices = payload.get("choices")
+    if not isinstance(choices, list) or not choices:
+        return None
+
+    choice_items = cast("list[object]", choices)
+    first_choice_obj = choice_items[0]
+    if not isinstance(first_choice_obj, dict):
+        msg = "stream choice must be an object"
+        raise LLMResponseError(msg)
+    first_choice = cast("dict[str, Any]", first_choice_obj)
+
+    delta_obj = first_choice.get("delta")
+    if not isinstance(delta_obj, dict):
+        return None
+    delta = cast("dict[str, Any]", delta_obj)
+
+    if delta.get("tool_calls") is not None:
+        msg = "streaming does not support tool call deltas"
+        raise LLMResponseError(msg)
+
+    content_obj = delta.get("content")
+    if content_obj is None:
+        return None
+    if not isinstance(content_obj, str):
+        msg = "stream delta content must be a string when present"
+        raise LLMResponseError(msg)
+    return content_obj
+
+
+def iter_sse_content_deltas(lines: Iterator[str]) -> Iterator[str]:
+    """Yield non-empty text deltas from OpenAI-compatible SSE lines."""
+    for raw_line in lines:
+        line = raw_line.strip()
+        if not line or not line.startswith("data:"):
+            continue
+        data = line.removeprefix("data:").strip()
+        if data == "[DONE]":
+            break
+        try:
+            payload_obj = json.loads(data)
+        except json.JSONDecodeError as exc:
+            msg = "stream data line is not valid JSON"
+            raise LLMResponseError(msg) from exc
+        if not isinstance(payload_obj, dict):
+            msg = "stream data payload must be a JSON object"
+            raise LLMResponseError(msg)
+        payload = cast("dict[str, Any]", payload_obj)
+        content_delta = _parse_stream_chunk_payload(payload)
+        if content_delta:
+            yield content_delta
 
 
 class OpenAICompatibleLLMClient:
@@ -284,14 +340,60 @@ class OpenAICompatibleLLMClient:
             msg = "LLM response body must be a JSON object"
             raise LLMResponseError(msg)
 
-        return parse_chat_response(cast(dict[str, Any], payload))
+        return parse_chat_response(cast("dict[str, Any]", payload))
+
+    def stream_chat(
+        self,
+        messages: tuple[ChatMessage, ...],
+        *,
+        settings: GenerationSettings | None = None,
+        tools: tuple[ToolDefinition, ...] = (),
+    ) -> Iterator[StreamChunk]:
+        body = build_chat_request_body(
+            messages,
+            llm_settings=self._settings,
+            settings=settings,
+            tools=tools,
+        )
+        body["stream"] = True
+        url = _chat_completions_url(self._settings.base_url)
+        headers = {
+            "Authorization": f"Bearer {self._settings.api_key}",
+            "Content-Type": "application/json",
+        }
+
+        try:
+            with self._client.stream(
+                "POST",
+                url,
+                headers=headers,
+                json=body,
+            ) as response:
+                if response.status_code in (401, 403):
+                    msg = f"LLM authentication failed with HTTP {response.status_code}"
+                    raise LLMAuthenticationError(msg)
+
+                if response.status_code >= 400:
+                    msg = f"LLM request failed with HTTP {response.status_code}"
+                    raise LLMTransportError(msg)
+
+                for content_delta in iter_sse_content_deltas(
+                    response.iter_lines(),
+                ):
+                    yield StreamChunk(content_delta=content_delta)
+        except httpx.TimeoutException as exc:
+            msg = f"LLM request timed out after {self._settings.timeout_seconds}s"
+            raise LLMTimeoutError(msg) from exc
+        except httpx.RequestError as exc:
+            msg = f"LLM transport error: {exc}"
+            raise LLMTransportError(msg) from exc
 
     def close(self) -> None:
         """Close the underlying HTTP client when owned by this instance."""
         if self._owns_client:
             self._client.close()
 
-    def __enter__(self) -> OpenAICompatibleLLMClient:
+    def __enter__(self) -> Self:
         return self
 
     def __exit__(self, *_args: object) -> None:

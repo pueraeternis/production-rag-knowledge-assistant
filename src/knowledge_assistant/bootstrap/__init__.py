@@ -1,5 +1,16 @@
 """Demo composition root for wiring storage, indexing, and retrieval."""
 
+from knowledge_assistant.bootstrap.chat import (
+    ChatSession,
+    StreamChunk,
+    TurnResult,
+    TurnSource,
+    TurnStream,
+    build_chat_session,
+    execute_turn,
+    execute_turn_streaming,
+    initial_agent_state,
+)
 from knowledge_assistant.bootstrap.config import (
     REAL_PIPELINE_LABEL,
     STUB_PIPELINE_LABEL,
@@ -22,6 +33,7 @@ from knowledge_assistant.bootstrap.retrievers import (
 
 __all__ = (
     "CANONICAL_STRATEGIES",
+    "ChatSession",
     "DEMO_RETRIEVAL_PIPELINE_LABEL",
     "REAL_PIPELINE_LABEL",
     "STUB_PIPELINE_LABEL",
@@ -29,9 +41,17 @@ __all__ = (
     "DemoEnvironment",
     "RetrievalStack",
     "RetrievalStrategy",
+    "StreamChunk",
+    "TurnResult",
+    "TurnSource",
+    "TurnStream",
+    "build_chat_session",
     "build_demo_environment",
     "build_retrieval_stack",
     "build_retriever_for_strategy",
+    "execute_turn",
+    "execute_turn_streaming",
+    "initial_agent_state",
     "retrieval_pipeline_label",
     "strategy_stack_description",
 )

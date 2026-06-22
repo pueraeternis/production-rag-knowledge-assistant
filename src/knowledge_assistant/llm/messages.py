@@ -76,7 +76,7 @@ class ToolCall:
             raise ValueError(msg) from exc
         if not isinstance(parsed, dict):
             msg = "ToolCall.arguments must be a JSON object string"
-            raise ValueError(msg)
+            raise TypeError(msg)
 
 
 @dataclass(frozen=True, slots=True)
@@ -97,6 +97,13 @@ class TokenUsage:
         if self.total_tokens < 0:
             msg = "total_tokens must be >= 0"
             raise ValueError(msg)
+
+
+@dataclass(frozen=True, slots=True)
+class StreamChunk:
+    """One incremental model text delta from a streaming completion."""
+
+    content_delta: str
 
 
 @dataclass(frozen=True, slots=True)

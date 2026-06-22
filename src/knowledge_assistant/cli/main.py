@@ -6,6 +6,7 @@ import argparse
 import sys
 from pathlib import Path
 
+from knowledge_assistant.cli import chat as chat_commands
 from knowledge_assistant.cli import demo as demo_commands
 from knowledge_assistant.cli import evaluate as evaluate_commands
 
@@ -98,6 +99,22 @@ def build_parser() -> argparse.ArgumentParser:
     )
     _add_evaluate_shared_options(compare_parser)
 
+    chat_parser = subparsers.add_parser("chat", help="interactive streaming chat")
+    chat_parser.add_argument(
+        "--message",
+        help="run a single turn and exit",
+    )
+    chat_parser.add_argument(
+        "--no-stream",
+        action="store_true",
+        help="disable streaming and print the full answer at once",
+    )
+    chat_parser.add_argument(
+        "--no-sources",
+        action="store_true",
+        help="omit the post-turn Sources block",
+    )
+
     return parser
 
 
@@ -130,6 +147,13 @@ def main(argv: list[str] | None = None) -> int:
                 eval_top_k=args.eval_top_k,
                 metrics_k=args.metrics_k,
             )
+
+    if args.command == "chat":
+        return chat_commands.run_chat(
+            message=args.message,
+            stream=not args.no_stream,
+            show_sources=not args.no_sources,
+        )
 
     parser.error(f"unknown command: {args.command}")
     return 2

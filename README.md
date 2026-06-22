@@ -21,7 +21,34 @@ Documentation is the source of truth. Implementation follows active plans.
 
 ## Agent Orchestration
 
-Plan 12 delivers the LangGraph agent in `knowledge_assistant.agent` — graph routing, MCP tool adapters, RAG prompts, and `run_turn` for conversational turns. Interactive CLI chat (`rag chat`) remains Plan 19. See [Plan 12](docs/plans/completed/12-langgraph-agent.md) and [docs/PROGRESS.md](docs/PROGRESS.md).
+Plan 12 delivers the LangGraph agent in `knowledge_assistant.agent` — graph routing, MCP tool adapters, RAG prompts, `run_turn`, and Plan 19 streaming turn execution with `TurnResult` / `TurnStream`. See [Plan 12](docs/plans/completed/12-langgraph-agent.md) and [Plan 19](docs/plans/completed/19-interactive-chat-demo.md).
+
+## Interactive Chat
+
+Plan 19 delivers `rag chat` — streaming interactive REPL and single-turn mode against the indexed corpus.
+
+**Prerequisites:** demo corpus indexed (`rag demo load`), LLM gateway configured in `.env` (`LLM_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL`).
+
+```bash
+# After demo bootstrap (see Demo Bootstrap below)
+cp .env.example .env   # configure LLM_* variables
+
+# Interactive streaming REPL (default)
+uv run rag chat
+
+# Single turn (testing / scripts)
+uv run rag chat --message "What is the remote work policy?"
+
+# Explicit non-streaming
+uv run rag chat --no-stream --message "Summarize vacation policy"
+
+# Omit structured Sources block
+uv run rag chat --no-sources
+```
+
+Chat validates corpus and index preconditions at startup (exit `3` if missing). It does **not** probe the LLM at startup — connectivity is checked on the first message. For meaningful retrieval quality, enable real embeddings/reranker and reindex before chatting.
+
+See [Plan 19](docs/plans/completed/19-interactive-chat-demo.md) and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ## Demo Bootstrap
 

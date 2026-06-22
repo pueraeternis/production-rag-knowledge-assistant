@@ -2239,3 +2239,307 @@ Bootstrap defaults to stub dense embeddings and stub reranker. Plan 16 requires 
 * Operators can verify evaluation wiring in lightweight environments.
 * Lecture documentation can state clear prerequisites for publishing benchmark numbers.
 * Plan 13 evaluation APIs remain mode-agnostic.
+
+---
+
+### ADR-042: LangGraph Agent Boundary
+
+**Status:** Accepted
+
+**Date:** 2026-06-21 (accepted retroactively during Plan 19, 2026-06-22)
+
+#### Context
+
+`PROJECT.md` and `docs/ARCHITECTURE.md` assign conversation handling, routing, tool selection, and memory to the LangGraph agent. Plan 11 delivers `LLMClient` without orchestration. Plan 10 delivers MCP handlers without transport.
+
+#### Decision
+
+* Agent orchestration lives in `knowledge_assistant.agent` using **LangGraph `StateGraph`** as the workflow engine for turn processing.
+* The agent owns graph state, `LLMClient.chat` invocation, tool schema exposure, and dispatch of model-emitted `ToolCall` values to MCP handler adapters.
+* The agent must not import retrieval, storage, indexing internals, Qdrant, httpx, or provider SDKs in core modules (`wiring.py` is the composition exception).
+
+#### Consequences
+
+* Clear orchestration boundary between agent, LLM, and MCP handlers.
+* Plan 19 extends execution with streaming strategy and `TurnResult` without graph topology changes.
+
+---
+
+### ADR-043: In-Process MCP Handler Adapters Before MCP SDK Transport
+
+**Status:** Accepted
+
+**Date:** 2026-06-21 (accepted retroactively during Plan 19, 2026-06-22)
+
+#### Context
+
+Plan 10 delivered handler functions without MCP SDK runtime. Plan 12 must connect the agent to knowledge tools.
+
+#### Decision
+
+* Plan 12 agent tool adapters call Plan 10 handler functions **directly in-process**.
+* Inject `Retriever` and `IndexingPipeline` at wiring time; validate arguments with `mcp_server/schemas.py`.
+* MCP SDK client/server transport remains deferred to a future plan.
+
+#### Consequences
+
+* Tests and demos run without MCP transport infrastructure.
+* Future SDK transport can replace adapters without changing handler contracts.
+
+---
+
+### ADR-044: Agent Tool Registry and Dispatch
+
+**Status:** Accepted
+
+**Date:** 2026-06-21 (accepted retroactively during Plan 19, 2026-06-22)
+
+#### Context
+
+The agent must expose Tier 1 MCP tools to the model and dispatch tool calls deterministically.
+
+#### Decision
+
+* `ToolRegistry` registers `AgentTool` implementations and exposes sorted `ToolDefinition` tuples to `LLMClient.chat`.
+* `tool_node` dispatches all pending tool calls before returning to `agent_node`.
+* Unknown tools produce structured tool error messages without crashing the graph.
+
+#### Consequences
+
+* Tool dispatch is testable in isolation.
+* MCP tool schemas remain the single source of truth for argument validation.
+
+---
+
+### ADR-045: In-Memory Conversation State Only
+
+**Status:** Accepted
+
+**Date:** 2026-06-21 (accepted retroactively during Plan 19, 2026-06-22)
+
+#### Context
+
+The project excludes durable memory platforms and checkpointers from scope.
+
+#### Decision
+
+* `AgentState` is in-memory only for Plan 12.
+* LangGraph compiles without checkpointers.
+* Plan 19 extends lifetime to one `rag chat` process (ADR-072) without persistence.
+
+#### Consequences
+
+* Simpler tests and lecture demo wiring.
+* Future persistence requires a new plan and ADR.
+
+---
+
+### ADR-046: RAG Prompt and Citation Contract
+
+**Status:** Accepted
+
+**Date:** 2026-06-21 (accepted retroactively during Plan 19, 2026-06-22)
+
+#### Context
+
+Answers must be grounded in retrieved MCP search results with inspectable citations.
+
+#### Decision
+
+* `agent/prompts.py` defines `SYSTEM_PROMPT` requiring `search_documents` for factual questions and citation fields from MCP source metadata.
+* Structured terminal citation rendering is owned by Plan 19 `TurnResult.sources` (ADR-075); the prompt contract governs inline prose citations.
+
+#### Consequences
+
+* Grounding rules are explicit and versioned in repository documentation.
+* CLI does not parse assistant prose for authoritative source blocks.
+
+---
+
+### ADR-071: Chat Execution Ownership
+
+**Status:** Accepted
+
+**Date:** 2026-06-22
+
+#### Context
+
+Plan 12 delivers `run_turn` but no user-facing execution path. Chat loop logic must not land in agent UI concerns or ad hoc CLI wiring.
+
+#### Decision
+
+* **CLI (`cli/chat.py`)** owns REPL, `TurnStream` consumption, source rendering, signals, and exit codes.
+* **Bootstrap (`bootstrap/chat.py`)** owns `ChatSession`, `build_chat_session()`, and turn facades without stdout callbacks.
+* **Agent** owns `TurnStream`, `TurnResult`, and turn orchestration via the existing graph plus streaming execution strategy.
+* **LLM** owns transport only.
+
+#### Consequences
+
+* `cli/chat.py` imports `bootstrap` only (plus stdlib), matching `demo.py` / `evaluate.py`.
+* Integration tests can call bootstrap facades or `main(["chat", ...])`.
+
+---
+
+### ADR-072: Conversation State Lifetime
+
+**Status:** Accepted
+
+**Date:** 2026-06-22
+
+#### Decision
+
+* `AgentState` lives in the `rag chat` process for one CLI invocation.
+* Each start seeds `SYSTEM_PROMPT` once; multi-turn REPL passes `TurnResult.state` forward.
+* Process exit discards state; partial turn failures do not append partial assistant messages.
+* Multi-session IDs are not supported.
+
+#### Consequences
+
+* Tests use explicit `AgentState` fixtures per turn sequence.
+
+---
+
+### ADR-073: Session Persistence Policy
+
+**Status:** Accepted
+
+**Date:** 2026-06-22
+
+#### Decision
+
+* No session persistence, transcript export, conversation logging, or LangGraph checkpointers in Plan 19.
+
+#### Consequences
+
+* Simpler implementation; future persistence requires a new plan.
+
+---
+
+### ADR-074: Bootstrap Ownership of Chat Wiring
+
+**Status:** Accepted
+
+**Date:** 2026-06-22
+
+#### Decision
+
+* `bootstrap/chat.py` provides `ChatSession`, `build_chat_session()`, `initial_agent_state()`, `execute_turn()`, and `execute_turn_streaming()`.
+* Production default LLM: `OpenAICompatibleLLMClient` (implements `StreamingLLMClient`).
+* Bootstrap facades return `TurnResult` / `TurnStream` without rendering callbacks.
+* Bootstrap may import `agent`, `llm`, and `mcp_server.config`; must not import `cli`.
+
+#### Consequences
+
+* Extends ADR-051 analogously to ADR-068 for chat assembly.
+
+---
+
+### ADR-075: Source Citation Rendering
+
+**Status:** Accepted
+
+**Date:** 2026-06-22
+
+#### Decision
+
+* Agent extracts `TurnSource` values during turn execution into `TurnResult.sources` (deduplicated, rank-ordered).
+* CLI renders a **Sources** block from `TurnResult.sources` via `format_turn_sources()` after stream completion.
+* CLI must not scan `AgentState.messages` or reparse MCP tool JSON for sources.
+
+#### Consequences
+
+* Source display is deterministic and testable at the turn boundary.
+
+---
+
+### ADR-076: Interactive Loop Design
+
+**Status:** Accepted
+
+**Date:** 2026-06-22
+
+#### Decision
+
+* REPL prompt: `You: `; streaming prints raw tokens; sources after completion.
+* `exit` / `quit` / EOF exit cleanly; `--message` runs single-turn mode.
+* Streaming default path: `execute_turn_streaming` → CLI iterates `TurnStream` → `turn_stream.result()`.
+
+#### Consequences
+
+* Agent → typed stream; CLI → terminal; no callback coupling.
+
+---
+
+### ADR-077: Startup Validation Behavior
+
+**Status:** Accepted
+
+**Date:** 2026-06-22
+
+#### Decision
+
+* `rag chat` prints a configuration banner after building `ChatSession` (no LLM probe).
+* Preconditions (exit `3`): corpus exists with indexable documents, non-empty collection, resolvable `LlmSettings.from_env()`.
+* LLM connectivity is validated on the first user turn, not at startup.
+
+#### Consequences
+
+* Faster startup; no spurious API calls.
+
+---
+
+### ADR-078: Streaming Architecture and Ownership
+
+**Status:** Accepted
+
+**Date:** 2026-06-22
+
+#### Decision
+
+* `LLMClient.chat()` contract unchanged; optional `StreamingLLMClient.stream_chat()` capability.
+* `OpenAICompatibleLLMClient` implements streaming via SSE; `StubLLMClient` does not stream.
+* Tool-loop rounds use `chat()`; final user-visible answer uses `stream_chat()` when streaming is enabled.
+* **No new graph nodes, routes, or `GraphState` fields** for streaming.
+* Agent exposes `TurnStream`; CLI consumes chunks; no stdout callbacks in agent/bootstrap.
+
+#### Consequences
+
+* Plan 11 tests unchanged; graph inspectability preserved.
+
+---
+
+### ADR-079: Error Handling, Recovery, and Ctrl-C
+
+**Status:** Accepted
+
+**Date:** 2026-06-22
+
+#### Decision
+
+* Pre-turn state snapshot; streaming failure restores snapshot and does not append partial assistant messages.
+* No automatic non-streaming retry.
+* Ctrl-C during stream consumption aborts iteration and returns to REPL (best-effort).
+* Exit codes: `0` clean; `1` operational failure; `2` usage; `3` precondition failure (index/config only).
+
+#### Consequences
+
+* Session recoverable after failures without hidden fallback behavior.
+
+---
+
+### ADR-080: Streaming Mode Selection (No Automatic Fallback)
+
+**Status:** Accepted
+
+**Date:** 2026-06-22
+
+#### Decision
+
+* Streaming on by default when client implements `StreamingLLMClient`.
+* `--no-stream` uses `execute_turn` / `chat()` end-to-end.
+* On streaming failure: display error, restore state, continue REPL; **no** automatic non-streaming retry.
+* No `RAG_CHAT_STREAM_FALLBACK` environment variable.
+
+#### Consequences
+
+* Predictable operator-visible behavior; explicit `--no-stream` for broken SSE providers.

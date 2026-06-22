@@ -394,7 +394,7 @@ Notes:
 
 Requires Plan 14 corpus, Plan 15 bootstrap workflow, and real model integration (Phases 11–12) for meaningful absolute benchmark quality. Framework and benchmark from Plan 13 are prerequisites. Stub provider modes verify wiring without authoritative model-quality claims (ADR-070).
 
-**Next roadmap phase:** Phase 14 — Interactive Chat Experience (Plan 19).
+**Next roadmap phase:** none — Phase 14 complete. See backlog for follow-up work.
 
 Goal:
 
@@ -402,7 +402,7 @@ Deliver the user-facing conversational demo.
 
 Plans:
 
-* Plan 19 — Interactive Chat Experience *(backlog — not yet authored)*
+* [Plan 19 — Interactive Chat Demo](../completed/19-interactive-chat-demo.md) *(completed)*
 
 Scope:
 

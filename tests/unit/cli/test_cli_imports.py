@@ -18,6 +18,10 @@ DEMO_FORBIDDEN_PREFIXES = (
     *FORBIDDEN_PREFIXES,
     "knowledge_assistant.evaluation",
 )
+CHAT_FORBIDDEN_PREFIXES = (
+    *FORBIDDEN_PREFIXES,
+    "knowledge_assistant.evaluation",
+)
 EVALUATE_FORBIDDEN_PREFIXES = FORBIDDEN_PREFIXES
 MAIN_FORBIDDEN_PREFIXES = (
     *FORBIDDEN_PREFIXES,
@@ -52,6 +56,9 @@ def test_cli_production_modules_respect_import_boundaries() -> None:
                 "knowledge_assistant.bootstrap",
                 "knowledge_assistant.evaluation",
             )
+        elif path.name == "chat.py":
+            forbidden_prefixes = CHAT_FORBIDDEN_PREFIXES
+            allowed_prefixes = ("knowledge_assistant.bootstrap",)
         elif path.name == "main.py":
             forbidden_prefixes = MAIN_FORBIDDEN_PREFIXES
             allowed_prefixes = ("knowledge_assistant.cli",)
@@ -87,6 +94,12 @@ def test_cli_production_modules_respect_import_boundaries() -> None:
                 module_matches_prefix(module, "knowledge_assistant.evaluation")
                 for module in knowledge_assistant_modules
             ), f"{path.name} must import knowledge_assistant.evaluation"
+
+        if path.name == "chat.py":
+            assert any(
+                module_matches_prefix(module, "knowledge_assistant.bootstrap")
+                for module in knowledge_assistant_modules
+            ), f"{path.name} must import knowledge_assistant.bootstrap"
 
         if path.name == "main.py":
             assert any(
