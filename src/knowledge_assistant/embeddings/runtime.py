@@ -5,7 +5,10 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass, field
 from importlib import import_module
-from typing import Protocol, cast, runtime_checkable
+from typing import Any, Protocol, cast, runtime_checkable
+
+import numpy as np
+import torch
 
 from knowledge_assistant.embeddings.config import EmbeddingRuntimeSettings
 from knowledge_assistant.embeddings.exceptions import (
@@ -16,7 +19,8 @@ from knowledge_assistant.embeddings.exceptions import (
 
 @runtime_checkable
 class DenseEmbeddingRuntime(Protocol):
-    """Stable contract for dense embedding inference.
+    """
+    Stable contract for dense embedding inference.
 
     ``embed_passages`` batches texts with ``EmbeddingRuntimeSettings.batch_size``.
     ``embed_query`` always processes one query (no batching).
@@ -40,8 +44,6 @@ def validate_device_available(device: str) -> None:
     """Raise ``EmbeddingDeviceError`` when an accelerator device is unavailable."""
     if device == "cpu":
         return
-
-    import torch
 
     if device == "cuda" and not torch.cuda.is_available():
         msg = (
@@ -91,19 +93,78 @@ class _BgeM3ModelFactory(Protocol):
 
 
 def _vector_rows_from_dense_output(dense_vecs: object) -> list[tuple[float, ...]]:
-    if not isinstance(dense_vecs, list):
-        msg = "BGE-M3 runtime returned unsupported dense_vecs shape"
-        raise TypeError(msg)
-    rows: list[tuple[float, ...]] = []
-    for row in cast("list[object]", dense_vecs):
+    """
+    Normalize FlagEmbedding dense outputs into validated vector rows.
+
+    FlagEmbedding returns ``list[list[float]]`` on CPU and ``numpy.ndarray`` with
+    shape ``(batch_size, dimension)`` on CUDA. Both shapes must be accepted.
+    """
+    if isinstance(dense_vecs, list):
+        return _vector_rows_from_sequence(cast("list[object]", dense_vecs))
+
+    ndarray_rows = _vector_rows_from_ndarray(dense_vecs)
+    if ndarray_rows is not None:
+        return ndarray_rows
+
+    tensor_rows = _vector_rows_from_tensor(dense_vecs)
+    if tensor_rows is not None:
+        return tensor_rows
+
+    msg = "BGE-M3 runtime returned unsupported dense_vecs shape"
+    raise TypeError(msg)
+
+
+def _vector_rows_from_sequence(rows: list[object]) -> list[tuple[float, ...]]:
+    vectors: list[tuple[float, ...]] = []
+    for row in rows:
         if not isinstance(row, list | tuple):
             msg = "BGE-M3 runtime returned unsupported dense vector row"
             raise TypeError(msg)
         values = cast("list[object] | tuple[object, ...]", row)
-        rows.append(
+        vectors.append(
             tuple(float(cast("float | int", value)) for value in values),
         )
-    return rows
+    return vectors
+
+
+def _vector_rows_from_ndarray(dense_vecs: object) -> list[tuple[float, ...]] | None:
+    if not isinstance(dense_vecs, np.ndarray):
+        return None
+
+    if dense_vecs.ndim == 1:
+        row: object = dense_vecs.tolist()
+        return [_vector_rows_from_sequence([row])[0]]
+    if dense_vecs.ndim == 2:
+        rows: list[object] = dense_vecs.tolist()
+        return _vector_rows_from_sequence(rows)
+
+    msg = "BGE-M3 runtime returned unsupported dense_vecs shape"
+    raise TypeError(msg)
+
+
+def _vector_rows_from_tensor(dense_vecs: object) -> list[tuple[float, ...]] | None:
+    detach = getattr(dense_vecs, "detach", None)
+    if not callable(detach):
+        return None
+
+    tensor: Any = detach()
+    cpu = getattr(tensor, "cpu", None)
+    if not callable(cpu):
+        return None
+
+    tensor_on_cpu: Any = cpu()
+    tolist = getattr(tensor_on_cpu, "tolist", None)
+    if not callable(tolist):
+        return None
+
+    rows: Any = tolist()
+    if isinstance(rows, list) and rows and isinstance(rows[0], int | float):
+        return _vector_rows_from_sequence([rows])
+    if isinstance(rows, list):
+        return _vector_rows_from_sequence(cast("list[object]", rows))
+
+    msg = "BGE-M3 runtime returned unsupported dense_vecs shape"
+    raise TypeError(msg)
 
 
 @dataclass(slots=True)

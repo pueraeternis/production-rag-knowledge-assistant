@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import math
 from typing import Any, cast
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
+import numpy as np
 import pytest
 
 from knowledge_assistant.embeddings import (
@@ -22,12 +23,14 @@ from knowledge_assistant.embeddings.runtime import (
 
 
 class FakeFlagModel:
-    def __init__(self, *args: object, **kwargs: object) -> None:
+    def __init__(self, *_args: object, **_kwargs: object) -> None:
         self.encode_calls: list[dict[str, Any]] = []
         self.encode_queries_calls: list[dict[str, Any]] = []
 
     def encode(
-        self, sentences: list[str], **kwargs: object
+        self,
+        sentences: list[str],
+        **kwargs: object,
     ) -> dict[str, list[list[float]]]:
         self.encode_calls.append({"sentences": sentences, "kwargs": kwargs})
         return {
@@ -43,6 +46,46 @@ class FakeFlagModel:
         return {
             "dense_vecs": [[float(index + 10)] * 4 for index, _ in enumerate(queries)],
         }
+
+
+class FakeFlagModelNumpy:
+    """Simulates FlagEmbedding CUDA output: float16 ndarray (batch, dimension)."""
+
+    def __init__(self, *_args: object, **_kwargs: object) -> None:
+        pass
+
+    def encode(self, sentences: list[str], **_kwargs: object) -> dict[str, np.ndarray]:
+        rows = np.array(
+            [[float(index + 1)] * 4 for index, _ in enumerate(sentences)],
+            dtype=np.float16,
+        )
+        return {"dense_vecs": rows}
+
+    def encode_queries(
+        self,
+        queries: list[str],
+        **_kwargs: object,
+    ) -> dict[str, np.ndarray]:
+        rows = np.array(
+            [[float(index + 10)] * 4 for index, _ in enumerate(queries)],
+            dtype=np.float16,
+        )
+        return {"dense_vecs": rows}
+
+
+class FakeFlagModelInvalidNumpy:
+    def __init__(self, *_args: object, **_kwargs: object) -> None:
+        pass
+
+    def encode(self, _sentences: list[str], **_kwargs: object) -> dict[str, np.ndarray]:
+        return {"dense_vecs": np.zeros((2, 3, 4))}
+
+    def encode_queries(
+        self,
+        _queries: list[str],
+        **_kwargs: object,
+    ) -> dict[str, np.ndarray]:
+        return {"dense_vecs": np.zeros((2, 3, 4))}
 
 
 @pytest.fixture
@@ -64,7 +107,7 @@ class TestBgeM3FlagEmbeddingRuntime:
     ) -> None:
         with patch("FlagEmbedding.BGEM3FlagModel", FakeFlagModel):
             runtime = BgeM3FlagEmbeddingRuntime(settings=runtime_settings)
-            model = cast(FakeFlagModel, runtime._model)  # pyright: ignore[reportPrivateUsage]
+            model = cast("FakeFlagModel", runtime._model)  # pyright: ignore[reportPrivateUsage]
             vectors = runtime.embed_passages(("a", "b", "c"))
 
         assert len(vectors) == 3
@@ -80,7 +123,7 @@ class TestBgeM3FlagEmbeddingRuntime:
     ) -> None:
         with patch("FlagEmbedding.BGEM3FlagModel", FakeFlagModel):
             runtime = BgeM3FlagEmbeddingRuntime(settings=runtime_settings)
-            model = cast(FakeFlagModel, runtime._model)  # pyright: ignore[reportPrivateUsage]
+            model = cast("FakeFlagModel", runtime._model)  # pyright: ignore[reportPrivateUsage]
             vector = runtime.embed_query("search me")
 
         assert len(vector) == 4
@@ -136,19 +179,53 @@ class TestBgeM3FlagEmbeddingRuntime:
 
         assert runtime.embed_passages(("x",))[0]
 
+    def test_embed_passages_accepts_numpy_ndarray_dense_vecs(
+        self,
+        runtime_settings: EmbeddingRuntimeSettings,
+    ) -> None:
+        with patch("FlagEmbedding.BGEM3FlagModel", FakeFlagModelNumpy):
+            runtime = BgeM3FlagEmbeddingRuntime(settings=runtime_settings)
+            vectors = runtime.embed_passages(("a", "b"))
+
+        assert len(vectors) == 2
+        assert all(len(vector) == 4 for vector in vectors)
+
+    def test_embed_query_accepts_numpy_ndarray_dense_vecs(
+        self,
+        runtime_settings: EmbeddingRuntimeSettings,
+    ) -> None:
+        with patch("FlagEmbedding.BGEM3FlagModel", FakeFlagModelNumpy):
+            runtime = BgeM3FlagEmbeddingRuntime(settings=runtime_settings)
+            vector = runtime.embed_query("search me")
+
+        assert len(vector) == 4
+
+    def test_rejects_unsupported_ndarray_rank(
+        self,
+        runtime_settings: EmbeddingRuntimeSettings,
+    ) -> None:
+        with patch("FlagEmbedding.BGEM3FlagModel", FakeFlagModelInvalidNumpy):
+            runtime = BgeM3FlagEmbeddingRuntime(settings=runtime_settings)
+            with pytest.raises(TypeError, match="unsupported dense_vecs shape"):
+                runtime.embed_passages(("a",))
+
 
 class TestDeviceValidation:
     def test_cpu_requires_no_accelerator(self) -> None:
         validate_device_available("cpu")
 
-    @patch("torch.cuda.is_available", return_value=False)
-    def test_cuda_unavailable_raises(self, _cuda: MagicMock) -> None:
-        with pytest.raises(EmbeddingDeviceError, match="cuda"):
+    def test_cuda_unavailable_raises(self) -> None:
+        with (
+            patch("torch.cuda.is_available", return_value=False),
+            pytest.raises(EmbeddingDeviceError, match="cuda"),
+        ):
             validate_device_available("cuda")
 
-    @patch("torch.backends.mps.is_available", return_value=False)
-    def test_mps_unavailable_raises(self, _mps: MagicMock) -> None:
-        with pytest.raises(EmbeddingDeviceError, match="mps"):
+    def test_mps_unavailable_raises(self) -> None:
+        with (
+            patch("torch.backends.mps.is_available", return_value=False),
+            pytest.raises(EmbeddingDeviceError, match="mps"),
+        ):
             validate_device_available("mps")
 
 
