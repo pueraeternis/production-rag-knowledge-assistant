@@ -1,265 +1,589 @@
 # Production RAG Knowledge Assistant
 
-Educational project demonstrating a production-style knowledge assistant using LangGraph, MCP, LlamaIndex, Qdrant, hybrid retrieval, and reranking.
+A local, end-to-end knowledge assistant that demonstrates how production-style RAG systems are built: hybrid retrieval over a vector database, MCP as the knowledge boundary, LangGraph for agent orchestration, and measurable retrieval evaluation.
 
-## Getting Started
+The project accompanies a Production RAG lecture. It prioritizes architectural clarity and reproducible workflows over enterprise-scale operations.
 
-Read the following documents in order before contributing or implementing changes:
+---
 
-1. [AGENTS.md](AGENTS.md) — agent and contributor guide
-2. [PROJECT.md](PROJECT.md) — project vision, scope, and goals
-3. [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — system architecture and component boundaries
-4. [docs/plans/active/](docs/plans/active/) — authorized implementation scope (empty when no plan is active)
+## Project Overview
 
-Additional references:
+### Business problem
 
-* [docs/DECISIONS.md](docs/DECISIONS.md) — architectural decision records
-* [docs/PROGRESS.md](docs/PROGRESS.md) — development history
-* [docs/plans/backlog/ROADMAP.md](docs/plans/backlog/ROADMAP.md) — long-term direction (informational)
+Large language models cannot reliably answer questions about proprietary company documentation. A knowledge assistant must retrieve relevant internal documents first, then generate a grounded answer with inspectable sources.
 
-Documentation is the source of truth. Implementation follows active plans.
+Simple dense vector search alone is often insufficient. Production systems typically combine semantic search, lexical search, fusion, reranking, and explicit source attribution.
 
-## Agent Orchestration
+### What this project demonstrates
 
-Plan 12 delivers the LangGraph agent in `knowledge_assistant.agent` — graph routing, MCP tool adapters, RAG prompts, `run_turn`, and Plan 19 streaming turn execution with `TurnResult` / `TurnStream`. See [Plan 12](docs/plans/completed/12-langgraph-agent.md) and [Plan 19](docs/plans/completed/19-interactive-chat-demo.md).
+| Capability | Implementation |
+| ---------- | -------------- |
+| Conversational assistant | LangGraph agent with tool loop and streaming chat |
+| Knowledge boundary | MCP-style handlers (`search_documents`, indexing tools) |
+| Document indexing | LlamaIndex loading and chunking → Qdrant |
+| Hybrid retrieval | BGE-M3 dense + sparse → RRF fusion → BGE reranker |
+| Source attribution | Document title, path, section, line range on every hit |
+| Retrieval evaluation | 70-case benchmark with Hit Rate@K, Recall@K, MRR |
+| Demo workflow | Synthetic corpus generation, bootstrap CLI, interactive chat |
 
-## Interactive Chat
+### Why hybrid RAG
 
-Plan 19 delivers `rag chat` — streaming interactive REPL and single-turn mode against the indexed corpus.
+Dense retrieval captures semantic similarity. Sparse (lexical) retrieval captures exact terminology, acronyms, and policy language. Reciprocal Rank Fusion (RRF) combines both rank lists without score calibration. A cross-encoder reranker reorders the fused candidate pool for final context selection.
 
-**Prerequisites:** Qdrant running (`docker compose up -d`), demo corpus indexed (`rag demo load`), LLM gateway configured in `.env` (`LLM_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL`).
+The evaluation framework compares **dense**, **sparse**, **fusion**, and **rerank** strategies on the same benchmark so trade-offs are measurable, not anecdotal.
 
-```bash
-# Load .env into the shell (the CLI does not read .env automatically)
-set -a && source .env && set +a
+### Educational vs production-oriented design
 
-# Interactive streaming REPL (default)
-uv run rag chat
+- **Educational:** clear layer boundaries, stub providers for fast CI, documented ADRs, committed benchmark.
+- **Production-oriented:** real BGE-M3 embeddings, real BGE reranker, human-in-the-loop index rebuild approval, structured citations, offline retrieval metrics.
 
-# Single turn (testing / scripts)
-uv run rag chat --message "What is the remote work policy?"
+### High-level architecture
 
-# Explicit non-streaming
-uv run rag chat --no-stream --message "Summarize vacation policy"
+```mermaid
+flowchart TB
+    User([User])
+    CLI[CLI Chat]
+    Agent[LangGraph Agent]
+    LLM[LLM Boundary]
+    MCP[MCP Handlers]
+    Retrieval[Retrieval Layer]
+    Indexing[Indexing Layer]
+    Qdrant[(Qdrant)]
 
-# Omit structured Sources block
-uv run rag chat --no-sources
+    User --> CLI
+    CLI --> Agent
+    Agent --> LLM
+    Agent --> MCP
+    MCP --> Retrieval
+    MCP --> Indexing
+    Retrieval --> Qdrant
+    Indexing --> Qdrant
 ```
 
-Chat validates corpus and index preconditions at startup (exit `3` if missing). It does **not** probe the LLM at startup — connectivity is checked on the first message. Load `.env` into your shell before running (`set -a && source .env && set +a`); see [Local LLM Setup](#local-llm-setup). For meaningful retrieval quality, enable real embeddings/reranker and reindex before chatting.
+The agent never talks to Qdrant directly. All knowledge access flows through MCP handlers.
 
-`--no-stream` uses the same two-phase turn pattern as streaming (tool-loop `chat()` calls, then a final `chat()` without tools). The REPL prints each assistant answer on its own line before the next `You:` prompt.
+---
 
-For questions outside the internal corpus (general knowledge, geography, trivia), the agent should answer directly **without** calling `search_documents`. Corpus questions should still search and render structured Sources.
+## Architecture
 
-See [Plan 19](docs/plans/completed/19-interactive-chat-demo.md) and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+### Request path (chat)
 
-## Local Infrastructure (Qdrant)
-
-Start Qdrant before `rag demo load` or `rag chat`. The compose file pins `qdrant/qdrant:v1.18.0` to match the `qdrant-client` dependency and persists data in a named Docker volume.
-
-```bash
-docker compose up -d
+```text
+User
+  ↓
+CLI Chat (`rag chat`)
+  ↓
+LangGraph Agent
+  ↓
+MCP Client (in-process tool adapters)
+  ↓
+Knowledge MCP Server (handler layer)
+  ↓
+Retrieval Layer
+  ↓
+Qdrant
 ```
 
-Default endpoint: `http://localhost:6333` (`QDRANT_URL` in `.env`).
+On corpus-related questions the agent calls `search_documents`, receives ranked chunks with citations, and generates a grounded answer. General-knowledge questions are answered directly without searching.
 
-```bash
-# Stop the container (data kept in volume)
-docker compose down
+### Retrieval internals
 
-# Stop and delete indexed data (requires rag demo load afterward)
-docker compose down -v
+Production chat and MCP search use the full stack:
+
+```text
+Dense Retrieval (BGE-M3)
+      +
+Sparse Retrieval (BGE-M3 lexical vectors)
+      ↓
+Fusion (Reciprocal Rank Fusion)
+      ↓
+Reranker (BGE cross-encoder or deterministic stub)
+      ↓
+Top context chunks with SourceReference metadata
 ```
 
-If port `6333` is already in use (for example by another Qdrant container), stop the conflicting service first.
+### Component responsibilities
 
-## Demo Bootstrap
+| Component | Owns | Must not own |
+| --------- | ---- | ------------ |
+| LangGraph Agent | Conversation, routing, tool selection, prompts | Retrieval implementation, Qdrant access |
+| MCP Server | Knowledge tools (`search_documents`, indexing preview/apply) | Agent behavior, LLM calls |
+| Retrieval Layer | Dense, sparse, fusion, reranking | LLM interaction |
+| Indexing Layer | Loading, parsing, chunking, write-path embeddings | Retrieval decisions |
+| Qdrant Storage | Vector storage and chunk payloads | Business logic |
+| LLM Boundary | All model inference | Retrieval, indexing, storage |
+| Evaluation Layer | Benchmark metrics and strategy comparison | Agent answers, MCP transport |
 
-Plan 15 delivers the demo composition root and CLI commands for indexing the canonical corpus into Qdrant.
+### Dependency flow
 
-**Prerequisites:** Python 3.12+, `uv sync`, Qdrant running (`docker compose up -d`) and reachable at `QDRANT_URL` (default `http://localhost:6333`).
+```text
+agent → mcp_server → retrieval → storage
+agent → llm
+indexing → storage
+```
+
+Forbidden shortcuts include `mcp_server → llm`, `retrieval → llm`, and `agent → qdrant`.
+
+Deeper reference: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), [docs/DECISIONS.md](docs/DECISIONS.md), [PROJECT.md](PROJECT.md).
+
+---
+
+## Knowledge Base
+
+### Synthetic corporate corpus
+
+The demo knowledge base is a **synthetic internal documentation corpus** for **AcmeCloud Analytics**, a fictional cloud analytics company. Documents cover HR policies, engineering runbooks, security, finance, product, SRE, and platform architecture.
+
+The corpus is designed as a **retrieval benchmark instrument**, not filler text. Content includes distinctive terminology, cross-links, and benchmark-aligned policy language so dense, sparse, fusion, and rerank strategies produce measurable differences.
+
+### Corpus generation
+
+| Property | Value |
+| -------- | ----- |
+| Company | AcmeCloud Analytics |
+| Manifest | `tools/knowledge_generator/manifests/corpus.v1.yaml` |
+| Document inventory | 96 documents |
+| Generated output | `knowledge/` (gitignored; regenerate locally) |
+| Files after generation | 97 (96 documents + `knowledge/README.md`) |
+| Formats | `.md`, `.txt` |
+| Internal systems | Atlas, Beacon, Mercury, Orion, Ledger, Gatehouse, Harbor |
+
+Regenerate the corpus:
 
 ```bash
-# 0. Start Qdrant (if not already running)
-docker compose up -d
-
-# 1. Generate the synthetic corpus (Plan 14)
 python3 tools/knowledge_generator/generator.py
+```
 
-# 2. Inspect demo readiness (read-only)
-uv run rag demo info
+The generator applies quality gates (duplicate detection, section diversity, filler-phrase checks) before writing files.
 
-# 3. Index corpus into Qdrant
-uv run rag demo load
+### Benchmark alignment
 
-# 4. Confirm index ready
+Retrieval evaluation uses `data/evaluation/retrieval_benchmark_v1.json`:
+
+| Property | Value |
+| -------- | ----- |
+| Cases | 70 curated questions |
+| Gold documents | 7 benchmark-canonical paths under `knowledge/policies/` and `knowledge/procedures/` |
+| Labeling | `expected_document_key` → document registry → corpus path |
+| Matching | Normalized `SearchResult.source.document_path` |
+
+Benchmark-canonical paths include `policies/remote_work_policy.md`, `policies/security_policy.md`, and `procedures/incident_response.md`.
+
+---
+
+## Indexing Workflow
+
+Indexing turns local files into dense and sparse vectors stored in Qdrant.
+
+### Prerequisites
+
+- Python 3.12+ and [uv](https://docs.astral.sh/uv/)
+- Qdrant running locally
+
+```bash
+uv sync
+docker compose up -d
+cp .env.example .env   # optional; configure LLM for chat
+```
+
+### Step-by-step
+
+**1. Generate the corpus**
+
+```bash
+python3 tools/knowledge_generator/generator.py
+```
+
+**2. Inspect environment (read-only)**
+
+```bash
 uv run rag demo info
 ```
 
-To replace an existing collection (both flags required):
+Reports corpus presence, document count, collection status, chunk count, and the configured retrieval pipeline label.
+
+**3. Index the corpus**
+
+```bash
+uv run rag demo load
+```
+
+**4. Confirm index readiness**
+
+```bash
+uv run rag demo info
+```
+
+**5. Reindex after embedding mode changes**
 
 ```bash
 uv run rag demo load --rebuild --approve
 ```
 
-To delete the demo collection:
+Both `--rebuild` and `--approve` are required to replace an existing collection.
+
+**6. Delete the demo collection (optional)**
 
 ```bash
 uv run rag demo reset --approve
 ```
 
-Optional environment variable: `RAG_CORPUS_ROOT` (default `knowledge`) overrides the corpus directory path.
+Override the corpus directory with `RAG_CORPUS_ROOT` (default: `knowledge/`).
 
-See [Plan 15](docs/plans/completed/15-demo-bootstrap-workflow.md) and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+### What happens during indexing
 
-## Real Dense and Sparse Embeddings (BGE-M3)
-
-Plan 16 adds opt-in real `BAAI/bge-m3` dense embeddings for indexing and retrieval. Plan 20 extends the same runtime with real BGE-M3 sparse (lexical) vectors on both write and query paths. Stub providers remain the default for CI and fast local development.
-
-```bash
-export RAG_EMBEDDING_MODE=real
-export RAG_EMBEDDING_DEVICE=cpu   # or cuda when GPU is available
-uv run rag demo info
+```text
+local .md / .txt files
+    ↓
+LlamaIndex SimpleDirectoryReader (loading)
+    ↓
+LlamaIndex SentenceSplitter (chunking: 1024 chars, 128 overlap)
+    ↓
+core domain models + line-range attribution from raw source text
+    ↓
+DenseEmbeddingProvider + SparseEmbeddingProvider (stub or BGE-M3)
+    ↓
+VectorStore.upsert_chunks → Qdrant (named dense + sparse vectors)
 ```
 
-The first real embedding run may download `BAAI/bge-m3` from Hugging Face. When `RAG_EMBEDDING_DEVICE=cuda` is set but CUDA is unavailable, initialization fails fast without falling back to CPU.
+- **Chunking:** `SentenceSplitter` with character tokenizer; default chunk size 1024, overlap 128.
+- **Embeddings:** indexing owns write-path dense and sparse vectors; retrieval owns query-path embeddings.
+- **Storage:** Qdrant collection `knowledge_chunks` (configurable) with named `dense` and `sparse` vectors plus nine-field chunk payloads.
+- **Collection creation:** `demo load` creates the collection on first run; rebuild deletes and recreates it when approved.
+- **Human approval:** destructive rebuild and reset operations require explicit `--approve` flags.
 
-**Reindex after switching stub → real** (dense and sparse vectors are incompatible with prior placeholder/stub indexes):
+---
+
+## Retrieval Pipeline
+
+All retrieval is deterministic — no LLM calls inside the retrieval layer.
+
+### Dense retrieval
+
+- **Model:** `BAAI/bge-m3` (opt-in via `RAG_EMBEDDING_MODE=real`)
+- **Path:** `SearchQuery` → `BgeM3QueryEmbeddingProvider.embed_query` → `VectorStore.search_dense`
+- **Vectors:** 1024-dimensional L2-normalized dense embeddings
+- **Default:** hash-based `StubQueryEmbeddingProvider` for CI and fast local runs
+
+### Sparse retrieval
+
+- **Model:** BGE-M3 lexical weights from the same shared runtime (Plan 20)
+- **Path:** `SearchQuery` → `BgeM3SparseQueryEmbeddingProvider.embed_query` → lexical weight conversion → `VectorStore.search_sparse`
+- **Vectors:** variable-length sparse vectors (sorted token indices + ReLU weights)
+- **Status:** real sparse write and query paths are implemented. Collections indexed before real sparse integration stored placeholder sparse vectors and must be reindexed for meaningful sparse and fusion metrics.
+
+### Fusion
+
+- **Algorithm:** Reciprocal Rank Fusion (RRF)
+- **Implementation:** `FusionRetriever` runs dense and sparse leaf retrievers with expanded `leaf_top_k`, merges rank lists, deduplicates by chunk ID, and truncates to `query.top_k`
+- **Scores:** fused `SearchResult.score` values are ordinal RRF keys — not comparable to dense, sparse, or reranker scores
+
+### Reranking
+
+- **Model:** `BAAI/bge-reranker-v2-m3` (opt-in via `RAG_RERANKER_MODE=real`)
+- **Implementation:** `RerankRetriever` expands the candidate pool, calls `Reranker.rerank`, preserves candidate count, sorts by relevance score
+- **Default:** `StubReranker` (deterministic token overlap) for CI
+- **Production wiring:** MCP `search_documents` and chat use `RerankRetriever(FusionRetriever(...), reranker)`
+
+---
+
+## Chat Demo
+
+### Prerequisites
+
+1. Qdrant running: `docker compose up -d`
+2. Corpus generated and indexed: see [Indexing Workflow](#indexing-workflow)
+3. LLM gateway configured in `.env` (`LLM_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL`)
+
+Load environment variables into your shell (the CLI does not read `.env` automatically):
 
 ```bash
-uv run rag demo load --rebuild --approve
+set -a && source .env && set +a
 ```
 
-Useful settings: `RAG_EMBEDDING_MODEL`, `RAG_EMBEDDING_BATCH_SIZE`, `RAG_EMBEDDING_MAX_LENGTH`, `RAG_EMBEDDING_NORMALIZE`, and `RAG_EMBEDDING_ENABLE_REAL_TESTS=true` for optional local real-model smoke tests — see `.env.example`.
+For meaningful retrieval quality, enable real embeddings and reranker, then reindex before chatting.
 
-**Evaluation comparison:** after reindex with `RAG_EMBEDDING_MODE=real`, run `rag evaluate compare` — expect sparse Hit@K > 0 and fusion metrics to diverge from dense-only ordering on lexical-friendly queries. Stub-mode evaluate runs remain useful for wiring checks only (ADR-070).
-
-See [Plan 16](docs/plans/completed/16-real-dense-embeddings-integration.md) and [Plan 20](docs/plans/completed/20-real-sparse-embeddings-integration.md).
-
-## Real Reranker
-
-Plan 17 adds an opt-in real BGE reranker behind the existing retrieval protocol. Stub reranking remains the default for fast local runs and CI.
-
-To enable the real reranker for demo retrieval wiring:
+### Start interactive chat
 
 ```bash
-export RAG_RERANKER_MODE=real
-export RAG_RERANKER_MODEL=BAAI/bge-reranker-v2-m3
-export RAG_RERANKER_DEVICE=cpu   # or auto, cuda, cuda:0
-uv run rag demo info
+uv run rag chat
 ```
 
-`rag demo info` reports the configured reranker mode/model but does not load the model. The first non-empty real rerank call loads `FlagEmbedding` and may download model weights from Hugging Face unless they are already cached. CPU is supported; GPU users can set `RAG_RERANKER_DEVICE=cuda` or an explicit device and may set `RAG_RERANKER_USE_FP16=true` for supported GPU execution.
+### Example interaction
 
-Useful settings: `RAG_RERANKER_BATCH_SIZE` (default `16`), `RAG_RERANKER_MAX_LENGTH` (default `1024`), and `RAG_RERANKER_ENABLE_REAL_TESTS=true` for the optional local real-model smoke test — see `.env.example`. Scores from the real reranker are ordinal relevance scores, not probabilities.
+The assistant searches the internal corpus for policy questions, answers from retrieved evidence, and prints structured sources after each turn.
 
-See [Plan 17](docs/plans/completed/17-real-reranker.md).
+```text
+You: How many days per week can staff work from home?
 
-## Retrieval Evaluation
+Assistant:
+Hybrid employees may work from home up to three days per week by default.
+Teams may approve up to four days per week with director approval. Fully
+remote employees work from an approved home office five days per week.
 
-Plan 13 delivers the retrieval evaluation layer in `knowledge_assistant.evaluation` — benchmark loading, Hit Rate@K / Recall@K / MRR metrics, `EvaluationRunner`, and multi-strategy `ComparisonReport` assembly. The committed benchmark lives under `data/evaluation/`.
+Sources:
 
-Plan 18 wires evaluation execution through the `rag` CLI after the corpus is indexed:
+[1] Remote and Hybrid Work Policy
+    File: …/knowledge/policies/remote_work_policy.md
+    Section: Requirements
+    Lines: 52-74
+```
+
+Source paths reflect the indexed absolute filesystem path on your machine; evaluation normalizes them to `knowledge/…` for benchmark matching.
+
+### Additional chat options
 
 ```bash
-# Prerequisites: corpus generated and indexed (see Demo Bootstrap above)
-uv run rag demo load
+# Single turn (scripts / testing)
+uv run rag chat --message "How many days per week can staff work from home?"
 
-# Evaluate one strategy
+# Disable streaming
+uv run rag chat --no-stream --message "Summarize the security policy"
+
+# Omit the Sources block
+uv run rag chat --no-sources
+```
+
+**Behavior notes:**
+
+- Chat validates corpus and index preconditions at startup (exit `3` if missing).
+- LLM connectivity is checked on the first message, not at startup.
+- Off-topic questions (general knowledge, geography, trivia) are answered directly **without** `search_documents`.
+- Corpus questions trigger hybrid retrieval and render the numbered Sources block unless `--no-sources` is set.
+
+---
+
+## Evaluation
+
+The evaluation layer measures **retrieval quality only** — not LLM answer quality or agent behavior.
+
+### Commands
+
+```bash
+# Prerequisites: corpus indexed (see Indexing Workflow)
+
 uv run rag evaluate run --strategy dense
 uv run rag evaluate run --strategy sparse
 uv run rag evaluate run --strategy fusion
 uv run rag evaluate run --strategy rerank
 
-# Compare all four canonical strategies
 uv run rag evaluate compare
 ```
 
-Optional flags: `--dataset PATH` (default `data/evaluation/retrieval_benchmark_v1.json`), `--eval-top-k INT` (default `5`), `--metrics-k` comma-separated (default `1,3,5`).
+### Optional flags
 
-**Stub vs real benchmarks (ADR-070):** evaluate inherits `RAG_EMBEDDING_MODE` and `RAG_RERANKER_MODE` from bootstrap. Stub modes run successfully and are useful for wiring checks, but absolute metric values are not authoritative for lecture claims about BGE-M3 or the BGE reranker. For meaningful benchmark numbers:
+| Flag | Default | Purpose |
+| ---- | ------- | ------- |
+| `--dataset PATH` | `data/evaluation/retrieval_benchmark_v1.json` | Benchmark JSON |
+| `--eval-top-k INT` | `5` | Retrieval depth per case |
+| `--metrics-k` | `1,3,5` | K cutoffs for Hit Rate@K and Recall@K |
+
+### Metrics
+
+| Metric | Meaning |
+| ------ | ------- |
+| **Hit Rate@K** | Fraction of cases where the expected document appears in the top K results |
+| **Recall@K** | Same as Hit Rate@K for this benchmark (one relevant document per case) |
+| **MRR** | Mean reciprocal rank of the first correct document |
+
+Relevance is determined by matching normalized `SearchResult.source.document_path` against the benchmark document registry.
+
+### Stub vs real model modes
+
+Evaluate inherits `RAG_EMBEDDING_MODE` and `RAG_RERANKER_MODE` from bootstrap.
+
+- **Stub mode:** runs successfully; useful for wiring checks and relative strategy behavior. Absolute numbers are **not** authoritative for model-quality claims.
+- **Real mode:** requires `RAG_EMBEDDING_MODE=real`, optional `RAG_RERANKER_MODE=real`, and a corpus reindexed with those settings.
+
+The CLI prints a configuration banner before results. Stub mode includes an explicit non-authoritative notice.
+
+---
+
+## Benchmark Results
+
+Measured on `data/evaluation/retrieval_benchmark_v1.json` (70 cases, `eval_top_k=5`) with `RAG_EMBEDDING_MODE=real`, `RAG_RERANKER_MODE=real`, and a corpus reindexed after real sparse integration (`rag demo load --rebuild --approve`).
+
+### Current results (Hit@1)
+
+| Strategy | Hit@1 |
+| -------- | ----- |
+| dense | 0.743 |
+| sparse | 0.671 |
+| fusion | 0.729 |
+| rerank | 0.714 |
+
+### Comparison with Plan 20 baseline (placeholder sparse)
+
+Before reindexing with real BGE-M3 sparse vectors, sparse retrieval contributed no lexical signal (identical placeholder vectors per chunk). After reindex:
+
+| Strategy | Hit@1 (baseline) | Hit@1 (current) |
+| -------- | ---------------- | --------------- |
+| dense | 0.743 | 0.743 |
+| sparse | 0.000 | 0.671 |
+| fusion | ≈ dense | 0.729 |
+| rerank | slight improvement over dense | 0.714 |
+
+**Baseline source:** [docs/plans/completed/20-real-sparse-embeddings-integration.md](docs/plans/completed/20-real-sparse-embeddings-integration.md) (real dense + real reranker, placeholder sparse). Baseline also reported dense Hit@3 = 0.871 and Hit@5 = 0.914.
+
+### Takeaways
+
+- **Real sparse reindex** unlocks lexical retrieval: sparse rises from 0.000 to 0.671 Hit@1.
+- **Fusion (0.729)** sits between dense and sparse — RRF combines both signals without matching dense alone on this benchmark.
+- **Rerank (0.714)** is slightly below dense Hit@1 here; cross-encoder reordering does not always improve document-level Hit@1 on every query mix (rerank optimizes chunk-level relevance within the fused pool).
+
+### Reproduce locally
 
 ```bash
-export RAG_EMBEDDING_MODE=real   # enables real dense + sparse (Plan 20)
-export RAG_RERANKER_MODE=real   # optional; affects rerank strategy only
+export RAG_EMBEDDING_MODE=real
+export RAG_RERANKER_MODE=real
 uv run rag demo load --rebuild --approve
 uv run rag evaluate compare
 ```
 
-After Plan 20, sparse and fusion strategy columns require a corpus reindexed with real sparse vectors. Collections indexed with Plan 16 dense-only sparse placeholders will show sparse Hit@K ≈ 0 until reindex.
+---
 
-Evaluate fails with exit code `3` when the collection is missing or empty — run `rag demo load` first.
+## Running With Real Models
 
-See [Plan 13](docs/plans/completed/13-evaluation-framework.md), [Plan 18](docs/plans/completed/18-retrieval-strategy-evaluation.md), and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+Real model runtimes are opt-in. Stub providers remain the default for CI.
 
-## Python Setup
+### Enable real embeddings (dense + sparse together)
+
+```bash
+export RAG_EMBEDDING_MODE=real
+export RAG_EMBEDDING_DEVICE=cpu    # or cuda when GPU is available
+export RAG_EMBEDDING_MODEL=BAAI/bge-m3
+```
+
+### Enable real reranker
+
+```bash
+export RAG_RERANKER_MODE=real
+export RAG_RERANKER_MODEL=BAAI/bge-reranker-v2-m3
+export RAG_RERANKER_DEVICE=cpu    # or auto, cuda
+```
+
+### Reindex (required)
+
+```bash
+uv run rag demo load --rebuild --approve
+```
+
+**Why reindex is required:** dense and sparse vectors from stub providers are incompatible with real BGE-M3 vectors. Switching `RAG_EMBEDDING_MODE` between `stub` and `real` always requires a full collection rebuild with explicit approval. The first real run may download model weights from Hugging Face.
+
+Inspect configuration without loading models:
+
+```bash
+uv run rag demo info
+```
+
+Useful settings: see [.env.example](.env.example) for `RAG_EMBEDDING_*`, `RAG_RERANKER_*`, and optional real-model smoke test flags.
+
+---
+
+## Project Progress
+
+Phases delivered to date (from [docs/PROGRESS.md](docs/PROGRESS.md)):
+
+| Phase | Deliverable |
+| ----- | ----------- |
+| Governance & Python bootstrap | Documentation skeleton, `uv` project, quality toolchain |
+| Domain models | Shared `core` types, `SourceReference`, validation |
+| Qdrant storage | `VectorStore` protocol, dense + sparse named vectors |
+| Indexing pipeline | LlamaIndex chunking, line attribution, embedding providers |
+| Dense retrieval | `DenseRetriever`, query embedding boundary |
+| Sparse retrieval | `SparseRetriever`, sparse search |
+| Fusion | `FusionRetriever`, RRF |
+| Reranking | `RerankRetriever`, stub reranker |
+| MCP handler layer | `search_documents`, indexing preview/apply, citations |
+| LLM boundary | OpenAI-compatible client, tool-call transport |
+| LangGraph agent | Tool loop, RAG prompts, MCP adapters |
+| Evaluation framework | 70-case benchmark, Hit Rate@K / Recall@K / MRR |
+| Synthetic knowledge base | 96-document AcmeCloud corpus generator |
+| Demo bootstrap | `rag demo info/load/reset`, composition root |
+| Real dense embeddings | BGE-M3 dense runtime |
+| Real reranker | BGE cross-encoder runtime |
+| Strategy evaluation CLI | `rag evaluate run/compare` |
+| Interactive chat | `rag chat` streaming REPL with source rendering |
+| Real sparse embeddings | BGE-M3 lexical vectors on write and query paths |
+
+---
+
+## Quick Start (full demo)
+
+```bash
+# 1. Dependencies and infrastructure
+uv sync
+docker compose up -d
+cp .env.example .env   # configure LLM_* for chat
+
+# 2. Corpus and index
+python3 tools/knowledge_generator/generator.py
+uv run rag demo load
+
+# 3. Optional: real models (then reindex)
+export RAG_EMBEDDING_MODE=real
+export RAG_RERANKER_MODE=real
+uv run rag demo load --rebuild --approve
+
+# 4. Evaluate retrieval
+uv run rag evaluate compare
+
+# 5. Chat
+set -a && source .env && set +a
+uv run rag chat
+```
+
+---
+
+## Local Infrastructure (Qdrant)
+
+```bash
+docker compose up -d          # start (data persisted in Docker volume)
+docker compose down           # stop, keep data
+docker compose down -v        # stop and delete indexed data
+```
+
+Default endpoint: `http://localhost:6333` (`QDRANT_URL` in `.env`).
+
+Image pin: `qdrant/qdrant:v1.18.0` (matches `qdrant-client` dependency).
+
+---
+
+## Local LLM Setup
+
+Chat requires an OpenAI-compatible gateway (vLLM, LiteLLM, Open WebUI, etc.).
+
+| Variable | Purpose |
+| -------- | ------- |
+| `LLM_BASE_URL` | API base URL (e.g. `http://localhost:8000/v1`) |
+| `LLM_API_KEY` | Bearer token |
+| `LLM_MODEL` | Model name served by the endpoint |
+
+Optional: `LLM_TEMPERATURE`, `LLM_MAX_TOKENS`, `LLM_TIMEOUT_SECONDS`.
+
+---
+
+## Development
 
 Requires Python 3.12+ and [uv](https://docs.astral.sh/uv/).
 
-Install dependencies and create the local virtual environment:
-
 ```bash
 uv sync
-```
-
-On Linux and Windows, `torch` resolves from the official PyTorch CUDA 12.6 (`cu126`) index so GPU inference works with common NVIDIA driver versions (including RTX 40-series). macOS continues to use the default PyPI CPU wheel. After `uv sync`, verify GPU availability:
-
-```bash
-uv run python -c "import torch; print(torch.__version__, torch.cuda.is_available())"
-```
-
-Run all development tools through `uv run`. Do not invoke `pytest`, `ruff`, or `basedpyright` directly.
-
-## Validation
-
-From the repository root, run the full quality suite before committing:
-
-```bash
 uv run ruff format --check .
 uv run ruff check .
 uv run basedpyright
 uv run pytest
 ```
 
-Standard validation is mandatory for all commits. The bootstrap validation exception (pre-`pyproject.toml` documentation-only commits) was superseded when [Plan 02 — Python Bootstrap](docs/plans/completed/02-python-bootstrap.md) completed.
+Run all tools through `uv run`. On Linux/Windows, `torch` resolves from the PyTorch CUDA index when configured in `pyproject.toml`.
 
-## Local LLM Setup
+### Documentation map
 
-Plan 11 provides an OpenAI-compatible LLM boundary for chat completions. For local development against vLLM or another compatible gateway:
-
-1. Copy the environment template:
-
-```bash
-cp .env.example .env
-```
-
-2. Edit `.env` and set at minimum:
-
-| Variable | Purpose |
+| Document | Purpose |
 | -------- | ------- |
-| `LLM_BASE_URL` | OpenAI-compatible base URL (e.g. `http://localhost:8000/v1`) |
-| `LLM_API_KEY` | Bearer token (vLLM often accepts `local`) |
-| `LLM_MODEL` | Model name served by the endpoint |
-
-Optional generation defaults: `LLM_TEMPERATURE`, `LLM_MAX_TOKENS`, `LLM_TIMEOUT_SECONDS`.
-
-3. Optional manual connectivity check (not run in CI):
-
-```python
-from knowledge_assistant.llm import (
-    ChatMessage,
-    ChatRole,
-    LlmSettings,
-    OpenAICompatibleLLMClient,
-)
-
-settings = LlmSettings.from_env()
-client = OpenAICompatibleLLMClient(settings)
-result = client.chat(
-    (ChatMessage(role=ChatRole.USER, content="Reply with the word ok."),),
-)
-print(result.content)
-```
-
-Load `.env` into your shell before calling `from_env()` (for example with your shell or process manager). The library does not load `.env` at runtime.
+| [AGENTS.md](AGENTS.md) | Contributor and agent guide |
+| [PROJECT.md](PROJECT.md) | Vision, scope, goals |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Authoritative architecture reference |
+| [docs/DECISIONS.md](docs/DECISIONS.md) | Architectural decision records |
+| [docs/PROGRESS.md](docs/PROGRESS.md) | Delivery chronology |
+| [docs/plans/completed/](docs/plans/completed/) | Completed implementation plans |
