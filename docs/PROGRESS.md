@@ -8,7 +8,7 @@ Chronological record of completed milestones for Production RAG Knowledge Assist
 
 **Latest completed plan:** [Plan 17 — Real Reranker Integration](plans/completed/17-real-reranker.md) (Phase 12 — Real Reranker Integration).
 
-**Current phase:** Phase 12 — Real Reranker Integration ([ROADMAP.md](plans/backlog/ROADMAP.md)).
+**Current phase:** Phase 13 — End-to-End Evaluation ([ROADMAP.md](plans/backlog/ROADMAP.md)).
 
 **Authorized implementation scope:** see [docs/plans/active/](plans/active/) (none when no plan is active).
 

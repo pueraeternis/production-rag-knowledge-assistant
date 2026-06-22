@@ -74,10 +74,10 @@ The first real embedding run may download `BAAI/bge-m3` from Hugging Face. When 
 **Reindex after switching stub → real** (vectors are incompatible):
 
 ```bash
-rag demo load --rebuild --approve
+uv run rag demo load --rebuild --approve
 ```
 
-Useful settings: `RAG_EMBEDDING_MODEL`, `RAG_EMBEDDING_BATCH_SIZE`, `RAG_EMBEDDING_MAX_LENGTH`, `RAG_EMBEDDING_NORMALIZE` — see `.env.example`.
+Useful settings: `RAG_EMBEDDING_MODEL`, `RAG_EMBEDDING_BATCH_SIZE`, `RAG_EMBEDDING_MAX_LENGTH`, `RAG_EMBEDDING_NORMALIZE`, and `RAG_EMBEDDING_ENABLE_REAL_TESTS=true` for the optional local real-model smoke test — see `.env.example`.
 
 **Evaluation comparison:** index with stub vs real bootstrap settings, run `EvaluationRunner` with distinct labels, then `compare_evaluation_reports` — Plan 13 APIs are unchanged.
 
@@ -98,7 +98,9 @@ uv run rag demo info
 
 `rag demo info` reports the configured reranker mode/model but does not load the model. The first non-empty real rerank call loads `FlagEmbedding` and may download model weights from Hugging Face unless they are already cached. CPU is supported; GPU users can set `RAG_RERANKER_DEVICE=cuda` or an explicit device and may set `RAG_RERANKER_USE_FP16=true` for supported GPU execution.
 
-Useful settings: `RAG_RERANKER_BATCH_SIZE` (default `16`), `RAG_RERANKER_MAX_LENGTH` (default `1024`), and `RAG_RERANKER_ENABLE_REAL_TESTS=true` for the optional local real-model smoke test. Scores from the real reranker are ordinal relevance scores, not probabilities.
+Useful settings: `RAG_RERANKER_BATCH_SIZE` (default `16`), `RAG_RERANKER_MAX_LENGTH` (default `1024`), and `RAG_RERANKER_ENABLE_REAL_TESTS=true` for the optional local real-model smoke test — see `.env.example`. Scores from the real reranker are ordinal relevance scores, not probabilities.
+
+See [Plan 17](docs/plans/completed/17-real-reranker.md).
 
 ## Retrieval Evaluation
 

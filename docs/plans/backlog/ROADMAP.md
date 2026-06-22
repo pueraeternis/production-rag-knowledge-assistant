@@ -136,7 +136,7 @@ Top Context
 
 Notes:
 
-Dense, sparse, and reranker paths use development stubs. Real model runtimes are deferred to Phases 11–12.
+At Phase 4 completion, dense, sparse, and reranker paths used development stubs. Real model runtimes were delivered in Phases 11–12 (Plans 16–17).
 
 ---
 
@@ -242,7 +242,7 @@ Deferred *(not part of Plan 13; future plans)*:
 * CLI subcommand wiring for evaluation output — Phase 13 (Plan 18)
 * full-benchmark integration tests against indexed corpus — Phase 13 (Plan 18)
 
-**Next roadmap phase:** Phase 11 — Real Embedding Models (Plan 16).
+**Next roadmap phase (at Phase 8 completion):** Phase 9 — Synthetic Knowledge Base (Plan 14). Phases 9–12 are now complete; see Phase 13 for the current next phase.
 
 ---
 
@@ -336,7 +336,7 @@ Replace stub embedding providers with production models.
 
 Plans:
 
-* Plan 16 — Real Dense Embeddings Integration *(active: [16-real-dense-embeddings-integration.md](../active/16-real-dense-embeddings-integration.md))*
+* Plan 16 — Real Dense Embeddings Integration *(completed: [16-real-dense-embeddings-integration.md](../completed/16-real-dense-embeddings-integration.md))*
 
 Scope:
 
@@ -363,6 +363,8 @@ Plans:
 Scope:
 
 * BAAI/bge-reranker-v2-m3
+
+**Next roadmap phase:** Phase 13 — End-to-End Evaluation (Plan 18).
 
 ---
 
