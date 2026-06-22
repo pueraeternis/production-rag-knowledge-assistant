@@ -28,6 +28,12 @@ class FakeVectorStore:
         self.calls.append("collection_exists")
         return self.collection_exists_value
 
+    def count_points(self) -> int:
+        self.calls.append("count_points")
+        if not self.collection_exists_value:
+            return 0
+        return len(self.upserted_items)
+
     def upsert_chunks(self, items: tuple[ChunkUpsertItem, ...]) -> None:
         self.calls.append("upsert_chunks")
         self.upserted_items = items

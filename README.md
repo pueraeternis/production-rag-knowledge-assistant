@@ -21,7 +21,43 @@ Documentation is the source of truth. Implementation follows active plans.
 
 ## Agent Orchestration
 
-Plan 12 delivers the LangGraph agent in `knowledge_assistant.agent` — graph routing, MCP tool adapters, RAG prompts, and `run_turn` for conversational turns. CLI wiring remains a future plan. See [Plan 12](docs/plans/completed/12-langgraph-agent.md) and [docs/PROGRESS.md](docs/PROGRESS.md).
+Plan 12 delivers the LangGraph agent in `knowledge_assistant.agent` — graph routing, MCP tool adapters, RAG prompts, and `run_turn` for conversational turns. Interactive CLI chat (`rag chat`) remains Plan 19. See [Plan 12](docs/plans/completed/12-langgraph-agent.md) and [docs/PROGRESS.md](docs/PROGRESS.md).
+
+## Demo Bootstrap
+
+Plan 15 delivers the demo composition root and CLI commands for indexing the canonical corpus into Qdrant.
+
+**Prerequisites:** Python 3.12+, `uv sync`, Qdrant reachable at `QDRANT_URL` (default `http://localhost:6333`).
+
+```bash
+# 1. Generate the synthetic corpus (Plan 14)
+python3 tools/knowledge_generator/generator.py
+
+# 2. Inspect demo readiness (read-only)
+uv run rag demo info
+
+# 3. Index corpus into Qdrant
+uv run rag demo load
+
+# 4. Confirm index ready
+uv run rag demo info
+```
+
+To replace an existing collection (both flags required):
+
+```bash
+uv run rag demo load --rebuild --approve
+```
+
+To delete the demo collection:
+
+```bash
+uv run rag demo reset --approve
+```
+
+Optional environment variable: `RAG_CORPUS_ROOT` (default `knowledge`) overrides the corpus directory path.
+
+See [Plan 15](docs/plans/completed/15-demo-bootstrap-workflow.md) and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ## Retrieval Evaluation
 

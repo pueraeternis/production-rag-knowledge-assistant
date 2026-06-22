@@ -57,6 +57,9 @@ class FakeVectorStore:
     def collection_exists(self) -> bool:
         return False
 
+    def count_points(self) -> int:
+        return 0
+
     def upsert_chunks(self, items: tuple[ChunkUpsertItem, ...]) -> None:
         _ = items
 

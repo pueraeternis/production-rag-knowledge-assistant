@@ -22,6 +22,10 @@ class VectorStore(Protocol):
         """Return whether the collection currently exists."""
         ...
 
+    def count_points(self) -> int:
+        """Return stored point count; zero when the collection does not exist."""
+        ...
+
     def upsert_chunks(self, items: tuple[ChunkUpsertItem, ...]) -> None:
         """Insert or update chunk points with vectors and payloads."""
         ...

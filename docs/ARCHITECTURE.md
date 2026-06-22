@@ -249,7 +249,7 @@ Qdrant
 
 | Module | Responsibility |
 | ------ | -------------- |
-| `protocol.py` | `VectorStore` protocol (six methods: create, delete, exists, upsert, search_dense, search_sparse) |
+| `protocol.py` | `VectorStore` protocol (seven methods: create, delete, exists, count_points, upsert, search_dense, search_sparse) |
 | `models.py` | `ChunkUpsertItem`, `SparseVector` boundary types |
 | `mapping.py` | Pure payload ↔ domain translation |
 | `collection.py` | Vector names and collection defaults |
@@ -472,6 +472,78 @@ ComparisonReport
 
 ---
 
+## Bootstrap Layer
+
+Plan 15 delivers the demo composition root in `knowledge_assistant.bootstrap`. Bootstrap assembles storage, indexing, and the canonical retrieval stack for demo workflows. It contains dependency assembly only — no CLI parsing, MCP handlers, agent logic, or evaluation metrics.
+
+```text
+BootstrapSettings.from_env()
+        ↓
+create_qdrant_vector_store(StorageSettings)
+        ↓
+StubEmbeddingProvider + IndexingPipeline
+        ↓
+DenseRetriever + SparseRetriever
+        ↓
+FusionRetriever
+        ↓
+StubReranker + RerankRetriever
+        ↓
+DemoEnvironment
+```
+
+| Module | Responsibility |
+| ------ | -------------- |
+| `config.py` | `BootstrapSettings` — corpus root, Qdrant URL, collection name, vector dimensions |
+| `environment.py` | `DemoEnvironment`, `build_demo_environment()`, corpus/collection status helpers |
+
+**Canonical demo retrieval pipeline (ADR-053):** `RerankRetriever(FusionRetriever(DenseRetriever, SparseRetriever), StubReranker())` with stub embedding and reranker providers until Plans 16–17 introduce real model runtimes.
+
+**`VectorStore.count_points()` (Plan 15):** read-only cardinality via Qdrant collection metadata (`points_count`); returns `0` when the collection does not exist. Primary consumer is `rag demo info`.
+
+**Corpus discovery:** `DemoEnvironment.corpus_document_count()` uses the same file discovery rules as `IndexingPipeline` — all supported `.md`/`.txt` files under the corpus root, including `README.md`. Counting and indexing semantics are identical.
+
+**`BootstrapSettings.dense_vector_size`:** read-only view of `storage_settings.dense_vector_size`; indexing and retrieval settings derive from this single source of truth.
+
+**Dependency rule:** bootstrap may import `storage`, `indexing`, the public `retrieval` package API, and `core`. It must not import `cli`, `agent`, `mcp_server`, `llm`, `evaluation`, `qdrant_client`, LangGraph, or MCP SDK. Retrieval orchestrators must be imported from `knowledge_assistant.retrieval`, not internal retrieval submodules.
+
+**Consumers:** `cli` (demo commands), tests, and future `rag evaluate` / `rag chat` wiring. Bootstrap complements but does not replace `agent/wiring.py` MCP adapters.
+
+See [ADR-051](DECISIONS.md#adr-051-demo-bootstrap-composition-root) through [ADR-054](DECISIONS.md#adr-054-demo-commands-require-explicit-approval-for-destructive-operations).
+
+---
+
+## CLI Demo Commands
+
+Plan 15 delivers operator-facing demo orchestration in `knowledge_assistant.cli`. The `rag` entrypoint exposes `demo info`, `demo load`, and `demo reset`. CLI owns argument parsing, stdout formatting, exit codes, and approval flag validation; all dependency construction delegates to `bootstrap`.
+
+```text
+python3 tools/knowledge_generator/generator.py   ← Plan 14 (corpus generation)
+        ↓
+rag demo info                                    ← read-only status
+        ↓
+rag demo load                                    ← index canonical knowledge/ corpus
+        ↓
+(index ready)
+        ↓
+future: rag evaluate                             ← Plan 18
+future: rag chat                                 ← Plan 19
+```
+
+| Command | Purpose | Mutations |
+| ------- | ------- | --------- |
+| `rag demo info` | Corpus and collection status, retrieval pipeline label | None |
+| `rag demo load` | Index `knowledge/` via `IndexingPipeline` | Creates or rebuilds Qdrant collection |
+| `rag demo reset` | Delete demo Qdrant collection | Deletes collection (`--approve` required) |
+
+**Approval gates (ADR-054):** `demo load` refuses to modify an existing collection unless both `--rebuild` and `--approve` are supplied. `demo reset` requires `--approve` on every invocation. CLI uses non-interactive flags only (no `input()` prompts).
+
+**Dependency rule:** CLI production modules may import `knowledge_assistant.bootstrap` and the Python standard library only. CLI must not import `qdrant_client`, `storage`, `indexing`, `retrieval`, `agent`, `mcp_server`, `llm`, or `evaluation`.
+
+See [ADR-052](DECISIONS.md#adr-052-cli-owns-demo-orchestration).
+
+---
+
 ## Source Layout
 
 ```text
@@ -484,7 +556,8 @@ src/knowledge_assistant/
     llm/            # OpenAI-compatible LLM boundary
     storage/        # Qdrant integration
     evaluation/     # retrieval benchmark evaluation and strategy comparison
-    cli/            # CLI entrypoints
+    bootstrap/      # demo composition root (storage + indexing + retrieval wiring)
+    cli/            # CLI entrypoints (rag demo commands)
 ```
 
 ---

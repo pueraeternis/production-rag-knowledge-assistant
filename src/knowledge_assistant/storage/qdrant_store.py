@@ -78,6 +78,14 @@ class QdrantVectorStore:
             collection_name=self._settings.collection_name,
         )
 
+    def count_points(self) -> int:
+        if not self.collection_exists():
+            return 0
+        info = self._client.get_collection(
+            collection_name=self._settings.collection_name,
+        )
+        return int(info.points_count or 0)
+
     def upsert_chunks(self, items: tuple[ChunkUpsertItem, ...]) -> None:
         if not self.collection_exists():
             msg = f"collection {self._settings.collection_name!r} not found"

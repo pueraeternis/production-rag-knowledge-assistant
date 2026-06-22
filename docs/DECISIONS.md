@@ -1684,3 +1684,147 @@ Plan 08 introduced `Retriever` as the composable retrieval contract. Plan 13 mus
 | Hard-code four concrete retriever classes in runner | Breaks composability |
 | Callable instead of protocol | Less consistent with ADR-022 |
 | Swallow retriever errors and score as miss | Hides infrastructure failures |
+
+---
+
+### ADR-051: Demo Bootstrap Composition Root
+
+**Status:** Accepted
+
+**Date:** 2026-06-22
+
+#### Context
+
+Plans 04–09 delivered storage, indexing, and composable retrieval. Plans 10–13 delivered MCP handlers, agent, and evaluation — each requiring externally injected `Retriever` and `IndexingPipeline` instances. Without a single composition root, CLI, tests, and future demo scripts would duplicate retriever wiring (violating ADR-032 assembly rule).
+
+#### Decision
+
+* Introduce `knowledge_assistant.bootstrap` as the **demo composition root**.
+* `build_demo_environment()` assembles `VectorStore`, `IndexingPipeline`, and canonical `RerankRetriever` stack using stub providers.
+* Bootstrap contains **dependency assembly only** — no CLI parsing, MCP handlers, agent logic, or evaluation metrics.
+* Bootstrap is the preferred wiring location for demo, CLI, and future `rag evaluate` / `rag chat` commands until a production configuration layer is needed.
+
+#### Consequences
+
+* CLI stays thin; retriever wiring exists in one place.
+* Agent and MCP plans continue to receive injected dependencies — bootstrap does not replace `agent/wiring.py` MCP adapters.
+* Real embedding/reranker swaps (Plans 16–17) change bootstrap provider selection only.
+
+#### Alternatives Considered
+
+| Alternative | Why rejected |
+| ----------- | ------------ |
+| Wire retrievers directly in CLI | Duplicates assembly; violates import boundaries |
+| Wire in `mcp_server` | Violates ADR-032 |
+| Wire only in tests | Production demo path remains unwired |
+
+---
+
+### ADR-052: CLI Owns Demo Orchestration
+
+**Status:** Accepted
+
+**Date:** 2026-06-22
+
+#### Context
+
+ADR-012 and ADR-030 assign human approval enforcement to callers. Plan 14 owns corpus generation tooling outside `src/`. Demo workflows need a user-facing orchestration layer for status, indexing, and reset — without growing MCP or agent responsibilities.
+
+#### Decision
+
+* `knowledge_assistant.cli` owns **demo command orchestration**: argument parsing, stdout formatting, exit codes, and approval flag validation.
+* CLI delegates all dependency construction to `bootstrap`.
+* CLI does not implement indexing, retrieval, or storage logic.
+* Corpus generation remains outside CLI (`tools/knowledge_generator/generator.py`).
+* Evaluation and chat CLIs remain deferred to Plans 18 and 19.
+
+#### Consequences
+
+* Demo UX is testable independently of retrieval algorithms.
+* MCP and agent layers remain free of argparse and stdin concerns.
+* Future `rag evaluate` and `rag chat` extend the same CLI package under separate plans.
+
+#### Alternatives Considered
+
+| Alternative | Why rejected |
+| ----------- | ------------ |
+| MCP tools for demo bootstrap | Demo setup is operator workflow, not agent knowledge access |
+| Makefile-only orchestration | Not cross-platform; hides approval semantics |
+| Agent-driven indexing | Violates human-in-the-loop and scope boundaries |
+
+---
+
+### ADR-053: Canonical Demo Retrieval Pipeline
+
+**Status:** Accepted
+
+**Date:** 2026-06-22
+
+#### Context
+
+Multiple valid retriever stacks exist (dense-only, fusion without rerank, etc.). Demo, evaluation comparison, and future MCP wiring must use one documented default so lecture results are reproducible.
+
+#### Decision
+
+* The canonical demo retrieval stack is:
+
+```text
+RerankRetriever(
+    base_retriever=FusionRetriever(
+        dense_retriever=DenseRetriever(...),
+        sparse_retriever=SparseRetriever(...),
+    ),
+    reranker=StubReranker(),
+)
+```
+
+* Stub embedding and stub reranker providers are mandatory until Plans 16–17.
+* `bootstrap.build_demo_environment().retriever` is the default `Retriever` for demo indexing verification and future CLI evaluation/chat wiring.
+* `rag demo info` reports this pipeline configuration to operators.
+
+#### Consequences
+
+* Plan 18 strategy comparison can document dense/sparse/fusion/rerank relative to the same indexed corpus and bootstrap defaults.
+* Plans 16–17 replace providers without changing orchestrator shape.
+
+#### Alternatives Considered
+
+| Alternative | Why rejected |
+| ----------- | ------------ |
+| Dense-only demo default | Under-represents hybrid retrieval lecture goals |
+| Real models in Plan 15 | Explicitly deferred; heavy dependencies |
+| Per-command retriever wiring | Non-reproducible demo state |
+
+---
+
+### ADR-054: Demo Commands Require Explicit Approval for Destructive Operations
+
+**Status:** Accepted
+
+**Date:** 2026-06-22
+
+#### Context
+
+`PROJECT.md` and ADR-012 require user confirmation before index replacement. Deleting a collection is similarly destructive. CLI must not silently rebuild or drop demo indexes.
+
+#### Decision
+
+* `rag demo load` requires `--approve` when `rebuild=True` executes (collection delete → create → upsert).
+* `rag demo load` refuses to replace an existing collection without explicit `--rebuild --approve`.
+* `rag demo reset` requires `--approve` for every invocation.
+* `rag demo info` never mutates storage or corpus.
+* CLI must not call `input()` — non-interactive flags only (CI-friendly).
+
+#### Consequences
+
+* Operators must deliberately opt in to data loss scenarios.
+* Scripts and CI integration tests pass `--approve` explicitly.
+* Consistent with MCP `approval_confirmed=True` pattern (ADR-030) at CLI layer.
+
+#### Alternatives Considered
+
+| Alternative | Why rejected |
+| ----------- | ------------ |
+| Interactive `input()` prompts | Untestable in CI; ADR-012 rejects library prompts |
+| Silent rebuild on `demo load` | Violates human-in-the-loop |
+| Reset without approval | Destructive operation requires explicit consent |

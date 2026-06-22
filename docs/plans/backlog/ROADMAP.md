@@ -242,7 +242,7 @@ Deferred *(not part of Plan 13; future plans)*:
 * CLI subcommand wiring for evaluation output — Phase 13 (Plan 18)
 * full-benchmark integration tests against indexed corpus — Phase 13 (Plan 18)
 
-**Next roadmap phase:** Phase 10 — Demo Bootstrap Workflow (Plan 15).
+**Next roadmap phase:** Phase 11 — Real Embedding Models (Plan 16).
 
 ---
 
@@ -295,7 +295,7 @@ Provide a zero-to-working-demo experience.
 
 Plans:
 
-* Plan 15 — Demo Bootstrap Workflow *(backlog — not yet authored)*
+* [Plan 15 — Demo Bootstrap Workflow](../completed/15-demo-bootstrap-workflow.md) *(completed)*
 
 User flow:
 

@@ -6,13 +6,35 @@ Chronological record of completed milestones for Production RAG Knowledge Assist
 
 ## Current Status (2026-06-22)
 
-**Latest completed plan:** [Plan 14 — Synthetic Corporate Knowledge Base](plans/completed/14-synthetic-knowledge-base.md) (Phase 9 — Synthetic Knowledge Base).
+**Latest completed plan:** [Plan 15 — Demo Bootstrap Workflow](plans/completed/15-demo-bootstrap-workflow.md) (Phase 10 — Demo Bootstrap Workflow).
 
-**Current phase:** Phase 10 — Demo Bootstrap Workflow ([ROADMAP.md](plans/backlog/ROADMAP.md)).
+**Current phase:** Phase 11 — Real Embedding Models ([ROADMAP.md](plans/backlog/ROADMAP.md)).
 
-**Authorized implementation scope:** None — activate the next plan from backlog before implementing.
+**Authorized implementation scope:** none (awaiting next active plan).
 
 **Deferred from Plan 12:** query rewriting and retrieval retry (proposed Plan 12b), MCP SDK transport (proposed Plan 12c), interactive CLI chat (Plan 19).
+
+---
+
+## 2026-06-22 — Demo Bootstrap Workflow
+
+**Plan:** [15-demo-bootstrap-workflow.md](plans/completed/15-demo-bootstrap-workflow.md)
+
+Wired existing components into a runnable demo bootstrap path:
+
+* added `knowledge_assistant.bootstrap` composition root with `BootstrapSettings`, `DemoEnvironment`, and `build_demo_environment()`;
+* canonical demo retrieval stack: dense + sparse → fusion (RRF) → rerank (stub providers);
+* `rag` CLI entrypoint with `demo info`, `demo load`, and `demo reset` subcommands;
+* extended `VectorStore` protocol with `count_points()` for collection cardinality reporting;
+* human-in-the-loop approval gates for destructive `demo load --rebuild` and `demo reset`;
+* AST-based import-boundary tests for CLI and bootstrap packages;
+* CLI integration tests exercise `main()` entry points for demo commands;
+* corpus document counting aligned with indexing discovery (includes `README.md`);
+* `BootstrapSettings.dense_vector_size` delegates to `storage_settings.dense_vector_size`;
+* bootstrap imports retrieval orchestrators from public `knowledge_assistant.retrieval` API;
+* recorded ADR-051 through ADR-054 in `docs/DECISIONS.md`;
+* documented bootstrap layer and CLI demo workflow in `docs/ARCHITECTURE.md` and `README.md`;
+* validation suite passed: ruff format, ruff check, basedpyright, pytest (457 tests).
 
 ---
 
