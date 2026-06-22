@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import signal
 import sys
 
@@ -19,6 +20,17 @@ from knowledge_assistant.bootstrap import (
 
 _PROMPT = "You: "
 _INTERRUPT_MESSAGE = "[generation interrupted]"
+
+
+def _configure_quiet_chat_output() -> None:
+    """Suppress third-party advisory logs that are not part of chat output."""
+    os.environ.setdefault("TRANSFORMERS_NO_ADVISORY_WARNINGS", "1")
+    os.environ.setdefault("HF_HUB_DISABLE_PROGRESS_BARS", "1")
+
+
+def _finish_assistant_output() -> None:
+    """Leave stdout on its own line before sources or the next REPL prompt."""
+    print(flush=True)
 
 
 class _StreamInterruptedError(Exception):
@@ -144,6 +156,7 @@ def render_turn_stream(turn_stream: TurnStream) -> TurnResult:
             print(file=sys.stderr)
             print(_INTERRUPT_MESSAGE, file=sys.stderr)
             raise _StreamInterruptedError
+        _finish_assistant_output()
         return turn_stream.result()
     except _StreamInterruptedError:
         raise
@@ -172,6 +185,7 @@ def run_single_turn(
             turn_result = execute_turn(session, state, message)
             sys.stdout.write(turn_result.answer)
             sys.stdout.flush()
+            _finish_assistant_output()
     except _StreamInterruptedError:
         return 1
     except Exception as exc:
@@ -215,6 +229,7 @@ def run_chat_repl(
                 turn_result = execute_turn(session, state, message)
                 sys.stdout.write(turn_result.answer)
                 sys.stdout.flush()
+                _finish_assistant_output()
         except _StreamInterruptedError:
             state = state_before_turn
             continue
@@ -240,6 +255,7 @@ def run_chat(
     session: ChatSession | None = None,
 ) -> int:
     """Build session, validate preconditions, and run REPL or single-turn chat."""
+    _configure_quiet_chat_output()
     try:
         resolved_session = session or build_chat_session()
     except Exception as exc:

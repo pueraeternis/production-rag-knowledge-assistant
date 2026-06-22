@@ -39,6 +39,7 @@ class TestAgentIndexingTools:
                         ),
                     ),
                 ),
+                GenerationResult(content=None, tool_calls=()),
                 GenerationResult(content="Preview complete: 4 chunks.", tool_calls=()),
             ),
         )
@@ -81,6 +82,7 @@ class TestAgentIndexingTools:
                         ),
                     ),
                 ),
+                GenerationResult(content=None, tool_calls=()),
                 GenerationResult(
                     content="Apply was rejected pending approval.",
                     tool_calls=(),
@@ -134,6 +136,7 @@ class TestAgentIndexingTools:
                         ),
                     ),
                 ),
+                GenerationResult(content=None, tool_calls=()),
                 GenerationResult(
                     content="Indexing applied successfully.",
                     tool_calls=(),

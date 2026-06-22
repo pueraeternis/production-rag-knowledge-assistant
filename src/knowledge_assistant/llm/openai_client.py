@@ -61,14 +61,31 @@ def _merge_generation_settings(
     return body
 
 
+def _tool_call_to_payload(call: ToolCall) -> dict[str, object]:
+    return {
+        "id": call.id,
+        "type": "function",
+        "function": {
+            "name": call.name,
+            "arguments": call.arguments,
+        },
+    }
+
+
 def _message_to_payload(message: ChatMessage) -> dict[str, object]:
     payload: dict[str, object] = {"role": message.role.value}
     if message.content is not None:
         payload["content"] = message.content
+    elif message.tool_calls:
+        payload["content"] = None
     if message.name is not None:
         payload["name"] = message.name
     if message.tool_call_id is not None:
         payload["tool_call_id"] = message.tool_call_id
+    if message.tool_calls:
+        payload["tool_calls"] = [
+            _tool_call_to_payload(tool_call) for tool_call in message.tool_calls
+        ]
     return payload
 
 

@@ -24,6 +24,7 @@ class ChatMessage:
     content: str | None = None
     name: str | None = None
     tool_call_id: str | None = None
+    tool_calls: tuple[ToolCall, ...] = ()
 
     def __post_init__(self) -> None:
         if self.role is ChatRole.TOOL and not self.tool_call_id:

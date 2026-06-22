@@ -13,7 +13,12 @@ from knowledge_assistant.llm.exceptions import (
     LLMTimeoutError,
     LLMTransportError,
 )
-from knowledge_assistant.llm.messages import ChatMessage, ChatRole, ToolDefinition
+from knowledge_assistant.llm.messages import (
+    ChatMessage,
+    ChatRole,
+    ToolCall,
+    ToolDefinition,
+)
 from knowledge_assistant.llm.openai_client import (
     OpenAICompatibleLLMClient,
     build_chat_request_body,
@@ -61,6 +66,34 @@ def test_build_chat_request_body_merges_settings(llm_settings: LlmSettings) -> N
     assert isinstance(function_obj, dict)
     function = cast(dict[str, object], function_obj)
     assert function["name"] == "search_documents"
+
+
+def test_build_chat_request_body_serializes_assistant_tool_calls(
+    llm_settings: LlmSettings,
+) -> None:
+    body = build_chat_request_body(
+        (
+            ChatMessage(
+                role=ChatRole.ASSISTANT,
+                content=None,
+                tool_calls=(
+                    ToolCall(
+                        id="call-1",
+                        name="search_documents",
+                        arguments='{"query": "policy"}',
+                    ),
+                ),
+            ),
+        ),
+        llm_settings=llm_settings,
+    )
+
+    messages = cast("list[dict[str, object]]", body["messages"])
+    assistant = messages[0]
+    tool_calls = cast("list[dict[str, object]]", assistant["tool_calls"])
+    function = cast("dict[str, object]", tool_calls[0]["function"])
+    assert function["name"] == "search_documents"
+    assert function["arguments"] == '{"query": "policy"}'
 
 
 def test_build_chat_request_body_omits_tools_when_empty(

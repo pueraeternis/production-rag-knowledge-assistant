@@ -44,8 +44,10 @@ class SearchDocumentsTool:
         return ToolDefinition(
             name=self.name,
             description=(
-                "Retrieve ranked documentation chunks with source attribution "
-                "for grounding answers."
+                "Search the internal documentation corpus only. Use for questions "
+                "about company policies, procedures, engineering docs, HR, finance, "
+                "and product knowledge. Do not use for general knowledge or off-topic "
+                "questions unrelated to the corpus."
             ),
             parameters=SEARCH_DOCUMENTS_PARAMETERS,
         )

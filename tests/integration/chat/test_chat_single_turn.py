@@ -45,7 +45,10 @@ class TestChatSingleTurn:
                 default_model="test-model",
             ),
             llm_client=StubLLMClient(
-                responses=(GenerationResult(content="Non-streaming answer"),),
+                responses=(
+                    GenerationResult(content=None, tool_calls=()),
+                    GenerationResult(content="Non-streaming answer"),
+                ),
             ),
         )
         with patch(

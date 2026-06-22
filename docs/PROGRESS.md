@@ -16,6 +16,27 @@ Chronological record of completed milestones for Production RAG Knowledge Assist
 
 ---
 
+## 2026-06-22 — Agent Tool-Loop and Off-Topic Search Fix
+
+Operator validation found empty answers and irrelevant Sources for general-knowledge questions (for example "What is the capital of France?").
+
+* preserved assistant `tool_calls` on `ChatMessage` and in OpenAI request payloads so the tool loop does not repeat `search_documents` after tool results are already in context;
+* tightened `SYSTEM_PROMPT` and `search_documents` tool description to scope search to the internal corpus only;
+* documented expected off-topic behavior in README.
+
+---
+
+## 2026-06-22 — Chat CLI UX and Non-Streaming Turn Fix
+
+Operator validation surfaced two chat issues:
+
+* REPL assistant output could run into the next `You:` prompt when streaming omitted a trailing newline — fixed in `cli/chat.py` with explicit turn finalization.
+* `--no-stream` could fail against some OpenAI-compatible gateways when LangGraph issued a final `chat()` call still carrying tools and large tool payloads — `run_turn` now mirrors streaming's two-phase pattern (tool loop, then final `chat()` without tools).
+
+Also documented `set -a && source .env && set +a` in README and suppressed third-party tokenizer/hub progress noise during `rag chat`.
+
+---
+
 ## 2026-06-22 — Real Sparse Embeddings Integration
 
 **Plan:** [20-real-sparse-embeddings-integration.md](plans/completed/20-real-sparse-embeddings-integration.md)

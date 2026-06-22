@@ -684,7 +684,7 @@ format_turn_sources(TurnResult.sources)   unless --no-sources
 | Flag | Default | Purpose |
 | ---- | ------- | ------- |
 | `--message TEXT` | none | Single-turn; skip REPL |
-| `--no-stream` | false | Use `execute_turn` / `chat()` only |
+| `--no-stream` | false | Use `execute_turn` / `chat()` only (tool loop, then final `chat()` without tools) |
 | `--no-sources` | false | Omit post-turn Sources block |
 
 **Streaming ownership (ADR-078):** `StreamingLLMClient.stream_chat()` in `llm/`; tool-loop rounds use sync `chat()`; final answer streams when enabled. LangGraph topology is unchanged — no new nodes, routes, or `GraphState` fields.

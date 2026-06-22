@@ -4,7 +4,8 @@
 
 from __future__ import annotations
 
-from typing import Any, Literal, cast
+from dataclasses import replace
+from typing import Any, Literal
 
 from langgraph.graph import (  # pyright: ignore[reportMissingTypeStubs]
     END,
@@ -14,19 +15,10 @@ from langgraph.graph import (  # pyright: ignore[reportMissingTypeStubs]
 
 from knowledge_assistant.agent.config import AgentSettings
 from knowledge_assistant.agent.exceptions import UnknownToolError
-from knowledge_assistant.agent.state import (
-    AgentState,
-    GraphState,
-    graph_output_to_state,
-    state_to_graph_input,
-)
-from knowledge_assistant.agent.streaming import ConcreteTurnStream
+from knowledge_assistant.agent.state import AgentState, GraphState
+from knowledge_assistant.agent.streaming import ConcreteTurnStream, run_tool_loop
 from knowledge_assistant.agent.tools import ToolRegistry, tool_error_content
-from knowledge_assistant.agent.turn import (
-    TurnResult,
-    collect_sources_from_messages,
-    messages_added_during_turn,
-)
+from knowledge_assistant.agent.turn import TurnResult
 from knowledge_assistant.llm.config import GenerationSettings
 from knowledge_assistant.llm.messages import ChatMessage, ChatRole
 from knowledge_assistant.llm.protocol import LLMClient, StreamingLLMClient
@@ -134,12 +126,11 @@ def run_turn(
     tool_registry: ToolRegistry,
     settings: AgentSettings | None = None,
 ) -> TurnResult:
-    """Append user message, invoke LangGraph, and return a completed turn."""
+    """Append user message, run the tool loop, and return a completed turn."""
     if not user_message.strip():
         msg = "user_message must be non-empty"
         raise ValueError(msg)
 
-    state_before_turn = state
     user_chat_message = ChatMessage(role=ChatRole.USER, content=user_message)
     input_state = AgentState(
         messages=(*state.messages, user_chat_message),
@@ -147,18 +138,37 @@ def run_turn(
         final_response=None,
         pending_tool_calls=(),
     )
+    agent_settings = settings or AgentSettings()
+    generation_settings = GenerationSettings()
 
-    graph = build_agent_graph(
-        llm_client,
-        tool_registry,
-        settings=settings,
+    post_tool_state, sources, outcome = run_tool_loop(
+        state=input_state,
+        llm_client=llm_client,
+        tool_registry=tool_registry,
+        settings=agent_settings,
+        generation_settings=generation_settings,
     )
-    output = cast("GraphState", graph.invoke(state_to_graph_input(input_state)))
-    output_state = graph_output_to_state(output)
-    turn_messages = messages_added_during_turn(state_before_turn, output_state)
-    sources = collect_sources_from_messages(turn_messages)
-    answer = output_state.final_response or ""
-    return TurnResult(state=output_state, answer=answer, sources=sources)
+    if outcome == "refusal":
+        return TurnResult(
+            state=post_tool_state,
+            answer=_MAX_ITERATIONS_MESSAGE,
+            sources=sources,
+        )
+
+    result = llm_client.chat(
+        post_tool_state.messages,
+        settings=generation_settings,
+        tools=(),
+    )
+    answer = result.content or ""
+    assistant_message = ChatMessage(role=ChatRole.ASSISTANT, content=answer)
+    final_state = replace(
+        post_tool_state,
+        messages=(*post_tool_state.messages, assistant_message),
+        final_response=answer,
+        pending_tool_calls=(),
+    )
+    return TurnResult(state=final_state, answer=answer, sources=sources)
 
 
 def run_turn_streaming(

@@ -2536,7 +2536,8 @@ Plan 12 delivers `run_turn` but no user-facing execution path. Chat loop logic m
 #### Decision
 
 * Streaming on by default when client implements `StreamingLLMClient`.
-* `--no-stream` uses `execute_turn` / `chat()` end-to-end.
+* `--no-stream` uses `execute_turn` / `chat()` only: shared tool-loop `chat()` calls, then a final `chat()` without tools (same two-phase pattern as streaming).
+* CLI REPL output ends each assistant turn with a newline before the next `You:` prompt or Sources block.
 * On streaming failure: display error, restore state, continue REPL; **no** automatic non-streaming retry.
 * No `RAG_CHAT_STREAM_FALLBACK` environment variable.
 

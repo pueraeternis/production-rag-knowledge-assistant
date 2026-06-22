@@ -27,11 +27,11 @@ Plan 12 delivers the LangGraph agent in `knowledge_assistant.agent` — graph ro
 
 Plan 19 delivers `rag chat` — streaming interactive REPL and single-turn mode against the indexed corpus.
 
-**Prerequisites:** demo corpus indexed (`rag demo load`), LLM gateway configured in `.env` (`LLM_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL`).
+**Prerequisites:** Qdrant running (`docker compose up -d`), demo corpus indexed (`rag demo load`), LLM gateway configured in `.env` (`LLM_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL`).
 
 ```bash
-# After demo bootstrap (see Demo Bootstrap below)
-cp .env.example .env   # configure LLM_* variables
+# Load .env into the shell (the CLI does not read .env automatically)
+set -a && source .env && set +a
 
 # Interactive streaming REPL (default)
 uv run rag chat
@@ -46,17 +46,44 @@ uv run rag chat --no-stream --message "Summarize vacation policy"
 uv run rag chat --no-sources
 ```
 
-Chat validates corpus and index preconditions at startup (exit `3` if missing). It does **not** probe the LLM at startup — connectivity is checked on the first message. For meaningful retrieval quality, enable real embeddings/reranker and reindex before chatting.
+Chat validates corpus and index preconditions at startup (exit `3` if missing). It does **not** probe the LLM at startup — connectivity is checked on the first message. Load `.env` into your shell before running (`set -a && source .env && set +a`); see [Local LLM Setup](#local-llm-setup). For meaningful retrieval quality, enable real embeddings/reranker and reindex before chatting.
+
+`--no-stream` uses the same two-phase turn pattern as streaming (tool-loop `chat()` calls, then a final `chat()` without tools). The REPL prints each assistant answer on its own line before the next `You:` prompt.
+
+For questions outside the internal corpus (general knowledge, geography, trivia), the agent should answer directly **without** calling `search_documents`. Corpus questions should still search and render structured Sources.
 
 See [Plan 19](docs/plans/completed/19-interactive-chat-demo.md) and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+
+## Local Infrastructure (Qdrant)
+
+Start Qdrant before `rag demo load` or `rag chat`. The compose file pins `qdrant/qdrant:v1.18.0` to match the `qdrant-client` dependency and persists data in a named Docker volume.
+
+```bash
+docker compose up -d
+```
+
+Default endpoint: `http://localhost:6333` (`QDRANT_URL` in `.env`).
+
+```bash
+# Stop the container (data kept in volume)
+docker compose down
+
+# Stop and delete indexed data (requires rag demo load afterward)
+docker compose down -v
+```
+
+If port `6333` is already in use (for example by another Qdrant container), stop the conflicting service first.
 
 ## Demo Bootstrap
 
 Plan 15 delivers the demo composition root and CLI commands for indexing the canonical corpus into Qdrant.
 
-**Prerequisites:** Python 3.12+, `uv sync`, Qdrant reachable at `QDRANT_URL` (default `http://localhost:6333`).
+**Prerequisites:** Python 3.12+, `uv sync`, Qdrant running (`docker compose up -d`) and reachable at `QDRANT_URL` (default `http://localhost:6333`).
 
 ```bash
+# 0. Start Qdrant (if not already running)
+docker compose up -d
+
 # 1. Generate the synthetic corpus (Plan 14)
 python3 tools/knowledge_generator/generator.py
 

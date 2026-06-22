@@ -52,7 +52,12 @@ def test_build_chat_session_wires_environment_llm_and_registry(
 def test_execute_turn_returns_turn_result_without_callbacks(
     demo_environment: DemoEnvironment,
 ) -> None:
-    llm = StubLLMClient(responses=(GenerationResult(content="Answer text"),))
+    llm = StubLLMClient(
+        responses=(
+            GenerationResult(content=None, tool_calls=()),
+            GenerationResult(content="Answer text"),
+        ),
+    )
     session = build_chat_session(
         bootstrap_settings=demo_environment.settings,
         vector_store=demo_environment.vector_store,

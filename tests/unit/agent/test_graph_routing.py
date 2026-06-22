@@ -207,7 +207,10 @@ class TestRunTurn:
 
     def test_run_turn_appends_user_message_and_returns_final_response(self) -> None:
         llm = StubLLMClient(
-            responses=(GenerationResult(content="Direct answer"),),
+            responses=(
+                GenerationResult(content=None, tool_calls=()),
+                GenerationResult(content="Direct answer"),
+            ),
         )
         turn_result = run_turn(
             state=_system_state(),

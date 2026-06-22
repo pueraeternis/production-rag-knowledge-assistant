@@ -63,7 +63,7 @@ class ConcreteTurnStream:
 
     def _stream_turn(self) -> Iterator[StreamChunk]:
         try:
-            post_tool_state, sources, outcome = _run_tool_loop(
+            post_tool_state, sources, outcome = run_tool_loop(
                 state=self._working_state,
                 llm_client=self._llm_client,
                 tool_registry=self._tool_registry,
@@ -105,7 +105,7 @@ class ConcreteTurnStream:
             raise
 
 
-def _run_tool_loop(
+def run_tool_loop(
     *,
     state: AgentState,
     llm_client: LLMClient,
@@ -129,6 +129,7 @@ def _run_tool_loop(
             assistant_message = ChatMessage(
                 role=ChatRole.ASSISTANT,
                 content=result.content,
+                tool_calls=result.tool_calls,
             )
             working_state = append_messages(working_state, (assistant_message,))
 

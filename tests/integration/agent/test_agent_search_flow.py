@@ -33,6 +33,7 @@ class TestAgentSearchFlow:
                         ),
                     ),
                 ),
+                GenerationResult(content=None, tool_calls=()),
                 GenerationResult(
                     content=(
                         "Remote work is allowed two days per week "
@@ -71,7 +72,10 @@ class TestAgentSearchFlow:
         tool_registry: ToolRegistry,
     ) -> None:
         llm = StubLLMClient(
-            responses=(GenerationResult(content="Hello! How can I help?"),),
+            responses=(
+                GenerationResult(content=None, tool_calls=()),
+                GenerationResult(content="Hello! How can I help?"),
+            ),
         )
 
         turn_result = run_turn(
