@@ -13,6 +13,7 @@ from knowledge_assistant.retrieval.config import (
 )
 from knowledge_assistant.retrieval.dense import DenseRetriever
 from knowledge_assistant.retrieval.embeddings import (
+    BgeM3QueryEmbeddingProvider,
     QueryEmbeddingProvider,
     SparseQueryEmbeddingProvider,
     StubQueryEmbeddingProvider,
@@ -30,6 +31,7 @@ from knowledge_assistant.retrieval.rerank import Reranker, RerankRetriever, Stub
 from knowledge_assistant.retrieval.sparse import SparseRetriever
 
 __all__ = [
+    "BgeM3QueryEmbeddingProvider",
     "DenseRetrievalSettings",
     "DenseRetriever",
     "EmbeddingDimensionError",

@@ -144,7 +144,7 @@ Top Context
 | `protocol.py` | `Retriever` composition protocol |
 | `fusion.py` | `FusionRetriever`, `reciprocal_rank_fusion` (RRF) |
 | `rerank.py` | `RerankRetriever`, `Reranker`, `StubReranker` |
-| `embeddings.py` | `QueryEmbeddingProvider`, `StubQueryEmbeddingProvider`, `SparseQueryEmbeddingProvider`, `StubSparseQueryEmbeddingProvider` |
+| `embeddings.py` | `QueryEmbeddingProvider`, `StubQueryEmbeddingProvider`, `BgeM3QueryEmbeddingProvider`, `SparseQueryEmbeddingProvider`, `StubSparseQueryEmbeddingProvider` |
 | `exceptions.py` | Retrieval-specific error types |
 | `dense.py` | `DenseRetriever` orchestration |
 | `sparse_vectors.py` | `SparseQueryVector` (retrieval-local) |
@@ -162,7 +162,9 @@ Top Context
 
 **Sparse placeholder constraint (ADR-020):** indexing still stores a constant sparse placeholder per ADR-010 until a future sparse indexing plan replaces it. Meaningful sparse retrieval against production-indexed corpora requires that future plan and a full reindex with caller approval. Plan 07 delivers the read path only.
 
-**Dependency rule:** leaf retrievers depend on the `VectorStore` protocol only — not on `qdrant_client`, `StorageSettings`, or other storage modules. Fusion and reranking depend on the `Retriever` protocol (and reranking depends on the `Reranker` protocol) only. See [ADR-014](DECISIONS.md#adr-014-dense-retrieval-boundary) through [ADR-027](DECISIONS.md#adr-027-future-bge-cross-encoder-reranker-integration).
+**Dense embedding runtime (ADR-055 through ADR-060):** real query-path dense vectors use `BgeM3QueryEmbeddingProvider`, which delegates to a shared `DenseEmbeddingRuntime` from `knowledge_assistant.embeddings`. Default demo and CI wiring still use `StubQueryEmbeddingProvider`; real mode is opt-in via bootstrap `embedding_mode`.
+
+**Dependency rule:** leaf retrievers depend on the `VectorStore` protocol only — not on `qdrant_client`, `StorageSettings`, or other storage modules. Fusion and reranking depend on the `Retriever` protocol (and reranking depends on the `Reranker` protocol) only. Dense embedding model runtimes live in `embeddings/`; retrieval adapters depend on the `DenseEmbeddingRuntime` protocol, not on `torch` or FlagEmbedding directly. See [ADR-014](DECISIONS.md#adr-014-dense-retrieval-boundary) through [ADR-027](DECISIONS.md#adr-027-future-bge-cross-encoder-reranker-integration) and [ADR-055](DECISIONS.md#adr-055-dedicated-embeddings-package-for-shared-bge-m3-runtime) through [ADR-060](DECISIONS.md#adr-060-stub-providers-remain-default-for-ci-and-fast-tests).
 
 ---
 
@@ -190,6 +192,18 @@ llm
 indexing
   ↓
 storage
+```
+
+```text
+indexing
+  ↓
+embeddings
+```
+
+```text
+retrieval
+  ↓
+embeddings
 ```
 
 Forbidden:
@@ -262,6 +276,41 @@ Storage receives pre-computed vectors on write and pre-computed query vectors on
 
 ---
 
+## Embeddings Layer
+
+Plan 16 delivers the shared dense embedding runtime in `knowledge_assistant.embeddings`. The package loads `BAAI/bge-m3` once and serves both indexing write-path and retrieval query-path adapters. Layer protocols remain in their owning packages per ADR-013 and ADR-015.
+
+```text
+EmbeddingRuntimeSettings.from_env()
+        ↓
+create_dense_embedding_runtime(settings)
+        ↓
+DenseEmbeddingRuntime (protocol)
+        ↓
+BgeM3EmbeddingProvider (indexing)  |  BgeM3QueryEmbeddingProvider (retrieval)
+```
+
+| Module | Responsibility |
+| ------ | -------------- |
+| `config.py` | `EmbeddingRuntimeSettings` — model name, device, batch size, normalization, dimension |
+| `runtime.py` | `DenseEmbeddingRuntime` protocol, `BgeM3FlagEmbeddingRuntime` |
+| `factory.py` | `create_dense_embedding_runtime`, `create_shared_dense_embedding_runtime` |
+| `exceptions.py` | `EmbeddingRuntimeError`, `EmbeddingDimensionMismatchError`, `EmbeddingDeviceError` |
+
+**Runtime contract (ADR-056, ADR-059):** `embed_passages` batches texts using `batch_size`; `embed_query` processes one query. Outputs are L2-normalized when `normalize_embeddings=True` (default) and must match configured `dense_vector_size`. Thread safety is not guaranteed — callers use one runtime per process in demo wiring.
+
+**Shared runtime ownership (ADR-057):** bootstrap creates one `DenseEmbeddingRuntime` per `DemoEnvironment` in real mode and injects it into both `BgeM3EmbeddingProvider` and `BgeM3QueryEmbeddingProvider`.
+
+**Migration (ADR-058):** switching stub ↔ real dense embeddings requires full collection rebuild and reindex with caller approval (`rag demo load --rebuild --approve`).
+
+**Default mode (ADR-060):** stub providers remain the CI and default demo path; real-model tests are opt-in via `@pytest.mark.embedding_model`.
+
+**Dependency rule:** `embeddings/` may import FlagEmbedding and `torch`. It must not import `indexing`, `retrieval`, `storage`, `mcp_server`, `agent`, `llm`, `evaluation`, `cli`, or `bootstrap`.
+
+See [ADR-055](DECISIONS.md#adr-055-dedicated-embeddings-package-for-shared-bge-m3-runtime) through [ADR-060](DECISIONS.md#adr-060-stub-providers-remain-default-for-ci-and-fast-tests).
+
+---
+
 ## Indexing Layer
 
 The `indexing/` package turns local documents into stored chunks via the `VectorStore` protocol. It is the only component that imports LlamaIndex (confined to `llamaindex_adapter.py`). See [ADR-007](DECISIONS.md#adr-007-llamaindex-containment-in-indexing-layer) through [ADR-013](DECISIONS.md#adr-013-embedding-boundary-ownership).
@@ -289,7 +338,7 @@ Path.read_text → raw source text → title, section_title, LineRange
 | ------ | -------------- |
 | `config.py` | `IndexingSettings` |
 | `documents.py` | Local file discovery (`.md`, `.txt`) |
-| `embeddings.py` | `EmbeddingProvider`, `StubEmbeddingProvider`, sparse placeholder |
+| `embeddings.py` | `EmbeddingProvider`, `StubEmbeddingProvider`, `BgeM3EmbeddingProvider`, sparse placeholder |
 | `exceptions.py` | Indexing-specific error types |
 | `ids.py` | UUID5 `DocumentId` and `ChunkId` generation |
 | `llamaindex_adapter.py` | LlamaIndex load/chunk + raw attribution mirror → domain models (sole LlamaIndex import site) |
@@ -481,23 +530,21 @@ BootstrapSettings.from_env()
         ↓
 create_qdrant_vector_store(StorageSettings)
         ↓
-StubEmbeddingProvider + IndexingPipeline
+embedding_mode stub | real
         ↓
-DenseRetriever + SparseRetriever
+IndexingPipeline + DenseRetriever (stub or BGE-M3 adapters)
         ↓
-FusionRetriever
-        ↓
-StubReranker + RerankRetriever
+FusionRetriever + StubReranker + RerankRetriever
         ↓
 DemoEnvironment
 ```
 
 | Module | Responsibility |
 | ------ | -------------- |
-| `config.py` | `BootstrapSettings` — corpus root, Qdrant URL, collection name, vector dimensions |
+| `config.py` | `BootstrapSettings` — corpus root, Qdrant URL, collection name, vector dimensions, `embedding_mode`, `EmbeddingRuntimeSettings` |
 | `environment.py` | `DemoEnvironment`, `build_demo_environment()`, corpus/collection status helpers |
 
-**Canonical demo retrieval pipeline (ADR-053):** `RerankRetriever(FusionRetriever(DenseRetriever, SparseRetriever), StubReranker())` with stub embedding and reranker providers until Plans 16–17 introduce real model runtimes.
+**Canonical demo retrieval pipeline (ADR-053, ADR-057):** `RerankRetriever(FusionRetriever(DenseRetriever, SparseRetriever), StubReranker())` with stub or real dense embedding providers (`embedding_mode`) and stub sparse/reranker providers until Plan 17 introduces a real reranker. `DemoEnvironment.pipeline_label` and `rag demo info` report the active embedding mode.
 
 **`VectorStore.count_points()` (Plan 15):** read-only cardinality via Qdrant collection metadata (`points_count`); returns `0` when the collection does not exist. Primary consumer is `rag demo info`.
 
@@ -509,7 +556,7 @@ DemoEnvironment
 
 **Consumers:** `cli` (demo commands), tests, and future `rag evaluate` / `rag chat` wiring. Bootstrap complements but does not replace `agent/wiring.py` MCP adapters.
 
-See [ADR-051](DECISIONS.md#adr-051-demo-bootstrap-composition-root) through [ADR-054](DECISIONS.md#adr-054-demo-commands-require-explicit-approval-for-destructive-operations).
+See [ADR-051](DECISIONS.md#adr-051-demo-bootstrap-composition-root) through [ADR-054](DECISIONS.md#adr-054-demo-commands-require-explicit-approval-for-destructive-operations) and [ADR-057](DECISIONS.md#adr-057-bootstrap-owned-shared-embedding-runtime).
 
 ---
 

@@ -19,9 +19,14 @@ FORBIDDEN_PREFIXES = (
 AUTHORIZED_PREFIXES = (
     "knowledge_assistant.bootstrap",
     "knowledge_assistant.core",
+    "knowledge_assistant.embeddings",
     "knowledge_assistant.storage",
     "knowledge_assistant.indexing",
     "knowledge_assistant.retrieval",
+)
+FORBIDDEN_RUNTIME_PREFIXES = (
+    "torch",
+    "FlagEmbedding",
 )
 UNAUTHORIZED_RETRIEVAL_PREFIXES = (
     "knowledge_assistant.retrieval.protocol",
@@ -45,6 +50,15 @@ def test_bootstrap_modules_do_not_import_forbidden_packages() -> None:
             assert not forbidden, (
                 f"{path.name} must not import forbidden module {prefix!r}; "
                 f"found {sorted(forbidden)}"
+            )
+
+
+def test_bootstrap_modules_do_not_import_model_runtimes() -> None:
+    for path in BOOTSTRAP_DIR.glob("*.py"):
+        content = path.read_text(encoding="utf-8")
+        for pattern in FORBIDDEN_RUNTIME_PREFIXES:
+            assert pattern not in content, (
+                f"{path.name} must not import model runtime {pattern!r}"
             )
 
 

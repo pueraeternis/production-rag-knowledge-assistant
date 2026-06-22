@@ -5,6 +5,7 @@ import math
 from dataclasses import dataclass
 from typing import Protocol
 
+from knowledge_assistant.embeddings.runtime import DenseEmbeddingRuntime
 from knowledge_assistant.storage.models import SparseVector
 
 EmbeddingVector = tuple[float, ...]
@@ -42,6 +43,16 @@ class StubEmbeddingProvider:
         if norm > 0:
             vector = [value / norm for value in vector]
         return tuple(vector)
+
+
+@dataclass(frozen=True, slots=True)
+class BgeM3EmbeddingProvider:
+    """Dense write-path provider delegating to a shared embedding runtime."""
+
+    runtime: DenseEmbeddingRuntime
+
+    def embed_texts(self, texts: tuple[str, ...]) -> tuple[EmbeddingVector, ...]:
+        return self.runtime.embed_passages(texts)
 
 
 def sparse_placeholder_vector() -> SparseVector:

@@ -6,13 +6,27 @@ Chronological record of completed milestones for Production RAG Knowledge Assist
 
 ## Current Status (2026-06-22)
 
-**Latest completed plan:** [Plan 15 — Demo Bootstrap Workflow](plans/completed/15-demo-bootstrap-workflow.md) (Phase 10 — Demo Bootstrap Workflow).
+**Latest completed plan:** [Plan 16 — Real Dense Embeddings Integration](plans/completed/16-real-dense-embeddings-integration.md) (Phase 11 — Real Embedding Models).
 
-**Current phase:** Phase 11 — Real Embedding Models ([ROADMAP.md](plans/backlog/ROADMAP.md)).
+**Current phase:** Phase 12 — Real Reranker Integration ([ROADMAP.md](plans/backlog/ROADMAP.md)).
 
 **Authorized implementation scope:** none (awaiting next active plan).
 
 **Deferred from Plan 12:** query rewriting and retrieval retry (proposed Plan 12b), MCP SDK transport (proposed Plan 12c), interactive CLI chat (Plan 19).
+
+---
+
+## 2026-06-22 — Real Dense Embeddings Integration
+
+**Plan:** [16-real-dense-embeddings-integration.md](plans/completed/16-real-dense-embeddings-integration.md)
+
+Replaced stub dense embedding providers with an opt-in BGE-M3 runtime:
+
+* added `knowledge_assistant.embeddings` with `DenseEmbeddingRuntime`, `BgeM3FlagEmbeddingRuntime`, and `EmbeddingRuntimeSettings`;
+* added `BgeM3EmbeddingProvider` and `BgeM3QueryEmbeddingProvider` layer adapters;
+* wired `embedding_mode` stub/real through bootstrap with shared runtime injection;
+* kept stub providers as CI/default mode; real-model tests behind `@pytest.mark.embedding_model`;
+* documented ADR-055 through ADR-060 and updated architecture/README workflow.
 
 ---
 

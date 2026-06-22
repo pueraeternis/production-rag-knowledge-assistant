@@ -6,10 +6,10 @@ import re
 from dataclasses import dataclass
 from typing import Protocol
 
+from knowledge_assistant.embeddings.runtime import DenseEmbeddingRuntime
 from knowledge_assistant.retrieval.sparse_vectors import SparseQueryVector
 
 QueryEmbeddingVector = tuple[float, ...]
-
 _MAX_QUERY_TERMS = 32
 _INDEX_MODULUS = 1_000_003
 
@@ -30,6 +30,16 @@ class StubQueryEmbeddingProvider:
 
     def embed_query(self, text: str) -> QueryEmbeddingVector:
         return _hash_embed_text(text, dimension=self.dimension)
+
+
+@dataclass(frozen=True, slots=True)
+class BgeM3QueryEmbeddingProvider:
+    """Dense query-path provider delegating to a shared embedding runtime."""
+
+    runtime: DenseEmbeddingRuntime
+
+    def embed_query(self, text: str) -> QueryEmbeddingVector:
+        return self.runtime.embed_query(text)
 
 
 def _hash_embed_text(text: str, *, dimension: int) -> QueryEmbeddingVector:

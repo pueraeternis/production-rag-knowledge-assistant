@@ -59,6 +59,42 @@ Optional environment variable: `RAG_CORPUS_ROOT` (default `knowledge`) overrides
 
 See [Plan 15](docs/plans/completed/15-demo-bootstrap-workflow.md) and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
+## Real Dense Embeddings
+
+Plan 16 delivers an opt-in BGE-M3 dense embedding runtime. Default demo and CI wiring still use stub providers.
+
+1. Copy and edit environment variables (see `.env.example`):
+
+| Variable | Purpose |
+| -------- | ------- |
+| `RAG_EMBEDDING_MODE` | `stub` (default) or `real` |
+| `RAG_EMBEDDING_MODEL` | Hugging Face model id (default `BAAI/bge-m3`) |
+| `RAG_EMBEDDING_DEVICE` | `cpu`, `cuda`, or `mps` |
+| `RAG_EMBEDDING_BATCH_SIZE` | Passage batch size for indexing |
+| `RAG_EMBEDDING_MAX_LENGTH` | Token limit for encoding |
+| `RAG_EMBEDDING_NORMALIZE` | L2-normalize vectors (`true`/`false`) |
+
+2. Enable real embeddings and rebuild the index (vectors are incompatible with stub mode):
+
+```bash
+export RAG_EMBEDDING_MODE=real
+uv run rag demo load --rebuild --approve
+```
+
+3. Confirm pipeline mode:
+
+```bash
+uv run rag demo info
+```
+
+Optional real-model smoke tests (not run in default CI):
+
+```bash
+uv run pytest -m embedding_model
+```
+
+See [Plan 16](docs/plans/completed/16-real-dense-embeddings-integration.md) and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+
 ## Retrieval Evaluation
 
 Plan 13 delivers the retrieval evaluation layer in `knowledge_assistant.evaluation` — benchmark loading, Hit Rate@K / Recall@K / MRR metrics, `EvaluationRunner`, and multi-strategy `ComparisonReport` assembly. The committed benchmark lives under `data/evaluation/`. See [Plan 13](docs/plans/completed/13-evaluation-framework.md) and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).

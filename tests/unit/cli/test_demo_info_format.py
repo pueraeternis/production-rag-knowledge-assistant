@@ -3,7 +3,6 @@
 from io import StringIO
 from unittest.mock import MagicMock, patch
 
-from knowledge_assistant.bootstrap import DEMO_RETRIEVAL_PIPELINE_LABEL
 from knowledge_assistant.cli import demo as demo_commands
 
 
@@ -20,6 +19,9 @@ class TestDemoInfoFormat:
         environment.corpus_document_count.return_value = 3
         environment.collection_exists.return_value = True
         environment.collection_chunk_count.return_value = 12
+        environment.pipeline_label = (
+            "dense + sparse → fusion (RRF) → rerank (stub embeddings)"
+        )
         environment.settings.qdrant_url = "http://localhost:6333"
         environment.settings.collection_name = "knowledge_chunks"
         environment.settings.corpus_root.resolve.return_value = "/tmp/knowledge"
@@ -33,7 +35,7 @@ class TestDemoInfoFormat:
         assert "Corpus document count: 3" in output
         assert "Collection exists: yes" in output
         assert "Collection chunk count: 12" in output
-        assert f"Retrieval pipeline: {DEMO_RETRIEVAL_PIPELINE_LABEL}" in output
+        assert f"Retrieval pipeline: {environment.pipeline_label}" in output
         assert "Qdrant URL: http://localhost:6333" in output
         assert "Collection name: knowledge_chunks" in output
         assert "Corpus path: /tmp/knowledge" in output

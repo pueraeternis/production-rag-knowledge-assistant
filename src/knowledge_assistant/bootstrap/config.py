@@ -5,12 +5,27 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Self
+from typing import Literal, Self, cast
 
+from knowledge_assistant.embeddings import EmbeddingRuntimeSettings
 from knowledge_assistant.indexing.config import IndexingSettings
 from knowledge_assistant.retrieval import DenseRetrievalSettings
 from knowledge_assistant.storage.collection import DEFAULT_COLLECTION_NAME
 from knowledge_assistant.storage.config import StorageSettings
+
+EmbeddingMode = Literal["stub", "real"]
+
+STUB_PIPELINE_LABEL = "dense + sparse → fusion (RRF) → rerank (stub embeddings)"
+REAL_PIPELINE_LABEL = (
+    "dense (bge-m3) + sparse → fusion (RRF) → rerank (stub embeddings)"
+)
+
+
+def retrieval_pipeline_label(*, embedding_mode: EmbeddingMode) -> str:
+    """Return the demo retrieval pipeline label for the given embedding mode."""
+    if embedding_mode == "real":
+        return REAL_PIPELINE_LABEL
+    return STUB_PIPELINE_LABEL
 
 
 @dataclass(frozen=True, slots=True)
@@ -19,6 +34,13 @@ class BootstrapSettings:
 
     corpus_root: Path
     storage_settings: StorageSettings
+    embedding_mode: EmbeddingMode = "stub"
+    embedding_runtime_settings: EmbeddingRuntimeSettings | None = None
+
+    def __post_init__(self) -> None:
+        if self.embedding_mode == "real" and self.embedding_runtime_settings is None:
+            msg = "embedding_runtime_settings is required when embedding_mode is 'real'"
+            raise ValueError(msg)
 
     @property
     def dense_vector_size(self) -> int:
@@ -32,6 +54,10 @@ class BootstrapSettings:
     @property
     def dense_retrieval_settings(self) -> DenseRetrievalSettings:
         return DenseRetrievalSettings(dense_vector_size=self.dense_vector_size)
+
+    @property
+    def pipeline_label(self) -> str:
+        return retrieval_pipeline_label(embedding_mode=self.embedding_mode)
 
     @classmethod
     def from_env(cls, **overrides: object) -> Self:
@@ -52,6 +78,31 @@ class BootstrapSettings:
 
         storage_settings = StorageSettings.from_env(**storage_overrides)
 
+        embedding_mode_raw = str(
+            overrides.pop(
+                "embedding_mode",
+                os.environ.get("RAG_EMBEDDING_MODE", "stub"),
+            ),
+        )
+        if embedding_mode_raw not in ("stub", "real"):
+            msg = (
+                "RAG_EMBEDDING_MODE must be 'stub' or 'real'; "
+                f"got {embedding_mode_raw!r}"
+            )
+            raise ValueError(msg)
+        embedding_mode: EmbeddingMode = embedding_mode_raw  # type: ignore[assignment]
+
+        embedding_runtime_settings: EmbeddingRuntimeSettings | None = None
+        if "embedding_runtime_settings" in overrides:
+            embedding_runtime_settings = cast(
+                "EmbeddingRuntimeSettings",
+                overrides.pop("embedding_runtime_settings"),
+            )
+        elif embedding_mode == "real":
+            embedding_runtime_settings = EmbeddingRuntimeSettings.from_env(
+                dense_vector_size=storage_settings.dense_vector_size,
+            )
+
         if overrides:
             unexpected = ", ".join(sorted(overrides))
             msg = f"unexpected bootstrap settings overrides: {unexpected}"
@@ -60,6 +111,8 @@ class BootstrapSettings:
         return cls(
             corpus_root=corpus_root,
             storage_settings=storage_settings,
+            embedding_mode=embedding_mode,
+            embedding_runtime_settings=embedding_runtime_settings,
         )
 
     @property

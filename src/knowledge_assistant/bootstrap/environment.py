@@ -4,11 +4,24 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from knowledge_assistant.bootstrap.config import BootstrapSettings
+from knowledge_assistant.bootstrap.config import (
+    STUB_PIPELINE_LABEL,
+    BootstrapSettings,
+    retrieval_pipeline_label,
+)
 from knowledge_assistant.core import IndexingSource, IndexingSourceKind
-from knowledge_assistant.indexing import IndexingPipeline, StubEmbeddingProvider
+from knowledge_assistant.embeddings import (
+    DenseEmbeddingRuntime,
+    create_shared_dense_embedding_runtime,
+)
+from knowledge_assistant.indexing import (
+    BgeM3EmbeddingProvider,
+    IndexingPipeline,
+    StubEmbeddingProvider,
+)
 from knowledge_assistant.indexing.documents import discover_files
 from knowledge_assistant.retrieval import (
+    BgeM3QueryEmbeddingProvider,
     DenseRetriever,
     FusionRetrievalSettings,
     FusionRetriever,
@@ -21,7 +34,7 @@ from knowledge_assistant.retrieval import (
 )
 from knowledge_assistant.storage import VectorStore, create_qdrant_vector_store
 
-DEMO_RETRIEVAL_PIPELINE_LABEL = "dense + sparse → fusion (RRF) → rerank (stub)"
+DEMO_RETRIEVAL_PIPELINE_LABEL = STUB_PIPELINE_LABEL
 
 
 @dataclass(frozen=True, slots=True)
@@ -32,6 +45,10 @@ class DemoEnvironment:
     vector_store: VectorStore
     indexing_pipeline: IndexingPipeline
     retriever: RerankRetriever
+
+    @property
+    def pipeline_label(self) -> str:
+        return self.settings.pipeline_label
 
     def corpus_exists(self) -> bool:
         return self.settings.corpus_root.is_dir()
@@ -64,30 +81,45 @@ class DemoEnvironment:
         )
 
 
+def _build_dense_embedding_runtime(
+    settings: BootstrapSettings,
+) -> DenseEmbeddingRuntime:
+    assert settings.embedding_runtime_settings is not None
+    return create_shared_dense_embedding_runtime(settings.embedding_runtime_settings)
+
+
 def build_demo_environment(
     *,
     settings: BootstrapSettings | None = None,
     vector_store: VectorStore | None = None,
 ) -> DemoEnvironment:
-    """Assemble the canonical demo stack using stub providers."""
+    """Assemble the canonical demo stack with stub or real dense embedding providers."""
     resolved_settings = settings or BootstrapSettings.from_env()
     resolved_store = vector_store or create_qdrant_vector_store(
         resolved_settings.storage_settings,
     )
 
+    if resolved_settings.embedding_mode == "real":
+        runtime = _build_dense_embedding_runtime(resolved_settings)
+        embedding_provider = BgeM3EmbeddingProvider(runtime=runtime)
+        query_embedding_provider = BgeM3QueryEmbeddingProvider(runtime=runtime)
+    else:
+        embedding_provider = StubEmbeddingProvider(
+            dimension=resolved_settings.dense_vector_size,
+        )
+        query_embedding_provider = StubQueryEmbeddingProvider(
+            dimension=resolved_settings.dense_vector_size,
+        )
+
     indexing_pipeline = IndexingPipeline(
         vector_store=resolved_store,
-        embedding_provider=StubEmbeddingProvider(
-            dimension=resolved_settings.dense_vector_size,
-        ),
+        embedding_provider=embedding_provider,
         settings=resolved_settings.indexing_settings,
     )
 
     dense_retriever = DenseRetriever(
         vector_store=resolved_store,
-        embedding_provider=StubQueryEmbeddingProvider(
-            dimension=resolved_settings.dense_vector_size,
-        ),
+        embedding_provider=query_embedding_provider,
         settings=resolved_settings.dense_retrieval_settings,
     )
     sparse_retriever = SparseRetriever(
@@ -111,3 +143,11 @@ def build_demo_environment(
         indexing_pipeline=indexing_pipeline,
         retriever=retriever,
     )
+
+
+__all__ = (
+    "DEMO_RETRIEVAL_PIPELINE_LABEL",
+    "DemoEnvironment",
+    "build_demo_environment",
+    "retrieval_pipeline_label",
+)

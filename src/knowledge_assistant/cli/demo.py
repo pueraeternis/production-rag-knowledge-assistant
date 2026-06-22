@@ -6,7 +6,6 @@ import sys
 from typing import TYPE_CHECKING
 
 from knowledge_assistant.bootstrap import (
-    DEMO_RETRIEVAL_PIPELINE_LABEL,
     build_demo_environment,
 )
 
@@ -136,7 +135,7 @@ def _print_demo_info(environment: DemoEnvironment) -> None:
         f"Collection exists: {'yes' if environment.collection_exists() else 'no'}",
     )
     print(f"Collection chunk count: {environment.collection_chunk_count()}")
-    print(f"Retrieval pipeline: {DEMO_RETRIEVAL_PIPELINE_LABEL}")
+    print(f"Retrieval pipeline: {environment.pipeline_label}")
     print(f"Qdrant URL: {environment.settings.qdrant_url}")
     print(f"Collection name: {environment.settings.collection_name}")
     print(f"Corpus path: {environment.settings.corpus_root.resolve()}")

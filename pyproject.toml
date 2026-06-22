@@ -5,6 +5,7 @@ description = "Educational production-style RAG knowledge assistant"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "FlagEmbedding>=1.2.0",
     "httpx>=0.28",
     "langgraph>=1.2.6",
     "llama-index-core>=0.12",
@@ -64,3 +65,6 @@ venv = ".venv"
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src", "tests/unit"]
+markers = [
+    "embedding_model: requires BAAI/bge-m3 download and significant runtime",
+]

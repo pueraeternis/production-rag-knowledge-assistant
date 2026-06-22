@@ -89,6 +89,22 @@ def test_fusion_modules_do_not_import_storage() -> None:
         assert forbidden not in content, f"{path.name} must not import storage"
 
 
+def test_retrieval_leaf_modules_do_not_import_model_runtimes() -> None:
+    leaf_modules = (
+        Path("src/knowledge_assistant/retrieval/embeddings.py"),
+        Path("src/knowledge_assistant/retrieval/dense.py"),
+        Path("src/knowledge_assistant/retrieval/sparse.py"),
+    )
+    forbidden_patterns = ("torch", "FlagEmbedding", "transformers")
+
+    for path in leaf_modules:
+        content = path.read_text(encoding="utf-8")
+        for pattern in forbidden_patterns:
+            assert pattern not in content, (
+                f"{path.name} must not import model runtime {pattern!r}"
+            )
+
+
 def test_rerank_modules_do_not_import_model_runtimes() -> None:
     rerank_path = Path("src/knowledge_assistant/retrieval/rerank.py")
     content = rerank_path.read_text(encoding="utf-8")

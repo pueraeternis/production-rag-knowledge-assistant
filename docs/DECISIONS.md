@@ -1828,3 +1828,147 @@ RerankRetriever(
 | Interactive `input()` prompts | Untestable in CI; ADR-012 rejects library prompts |
 | Silent rebuild on `demo load` | Violates human-in-the-loop |
 | Reset without approval | Destructive operation requires explicit consent |
+
+---
+
+### ADR-055: Dedicated Embeddings Package for Shared BGE-M3 Runtime
+
+**Status:** Accepted
+
+**Date:** 2026-06-22
+
+#### Context
+
+ADR-013 assigns write-path embedding ownership to indexing and query-path ownership to retrieval. Plan 16 must load one BGE-M3 model for both paths without violating layer boundaries or duplicating `torch` imports.
+
+#### Decision
+
+* Introduce `knowledge_assistant.embeddings` as the shared dense embedding runtime package.
+* Indexing implements `BgeM3EmbeddingProvider(EmbeddingProvider)`; retrieval implements `BgeM3QueryEmbeddingProvider(QueryEmbeddingProvider)`.
+* Layer protocols remain in their owning packages per ADR-013 and ADR-015.
+* `embeddings/` must not import indexing, retrieval, storage, MCP, agent, LLM, or evaluation.
+
+#### Consequences
+
+* One model load path; `torch` / FlagEmbedding imports localized to `embeddings/`.
+* Future sparse embedding runtime may extend the package without changing Plan 16 dense contracts.
+
+---
+
+### ADR-056: BGE-M3 Default Runtime Implementation (FlagEmbedding)
+
+**Status:** Accepted
+
+**Date:** 2026-06-22
+
+#### Context
+
+Plan 16 must introduce real `BAAI/bge-m3` dense vectors with distinct query vs passage encoding. The stable contract must not lock all layers to FlagEmbedding.
+
+#### Decision
+
+* `DenseEmbeddingRuntime` is the stable protocol (`embed_passages`, `embed_query`).
+* `BgeM3FlagEmbeddingRuntime` is the Plan 16 default implementation using FlagEmbedding internally.
+* Dense-only inference: passage mode via `encode`; query mode via `encode_queries`.
+* `create_dense_embedding_runtime(settings)` returns the protocol type.
+
+#### Consequences
+
+* Indexing and retrieval remain backend-agnostic.
+* Heavier dependencies appear for the first time; CI default remains stub providers.
+
+---
+
+### ADR-057: Bootstrap-Owned Shared Embedding Runtime
+
+**Status:** Accepted
+
+**Date:** 2026-06-22
+
+#### Context
+
+Indexing and retrieval both require the same BGE-M3 weights. Without explicit shared-runtime ownership, wiring could construct independent model instances.
+
+#### Decision
+
+* Bootstrap creates one `DenseEmbeddingRuntime` per `DemoEnvironment` when real embeddings are enabled.
+* The same runtime is injected into `BgeM3EmbeddingProvider` and `BgeM3QueryEmbeddingProvider`.
+* Default mode remains stub providers; real mode is opt-in via `RAG_EMBEDDING_MODE=real`.
+* Bootstrap imports `knowledge_assistant.embeddings` factories only — not `torch` or FlagEmbedding directly.
+
+#### Consequences
+
+* Single model load per demo environment assembly.
+* Unit tests continue injecting stub providers without loading models.
+
+---
+
+### ADR-058: Dense Embedding Migration Requires Full Reindex
+
+**Status:** Accepted
+
+**Date:** 2026-06-22
+
+#### Context
+
+Stub-indexed and real BGE-M3 vectors occupy the same `dense` slot but are semantically incompatible.
+
+#### Decision
+
+* Switching dense embedding provider stub ↔ real requires full collection rebuild and reindex with caller approval.
+* Recovery path: `rag demo load --rebuild --approve`.
+* No in-place dense vector migration in Plan 16.
+* Mixing stub-indexed dense vectors with real query embeddings (or vice versa) is unsupported.
+
+#### Consequences
+
+* Operators must plan a reindex window when enabling real embeddings.
+* `rag demo info` reports embedding mode so operators detect mismatch risk.
+
+---
+
+### ADR-059: Dense Vector Normalization and Dimension Contract
+
+**Status:** Accepted
+
+**Date:** 2026-06-22
+
+#### Context
+
+Qdrant dense search uses `COSINE` distance. Real model outputs must align with configured `dense_vector_size` and stub normalization behavior.
+
+#### Decision
+
+* Every `DenseEmbeddingRuntime` output length must equal configured `dense_vector_size` (default `1024`).
+* Runtime applies L2 normalization when `normalize_embeddings=True` (default).
+* `EmbeddingRuntimeSettings.dense_vector_size` is supplied from `StorageSettings` at bootstrap assembly.
+* `batch_size` applies to `embed_passages` only; `embed_query` always processes one query.
+
+#### Consequences
+
+* Predictable cosine behavior when all layers share one dimension setting.
+* Misconfiguration fails at runtime construction or first embed.
+
+---
+
+### ADR-060: Stub Providers Remain Default for CI and Fast Tests
+
+**Status:** Accepted
+
+**Date:** 2026-06-22
+
+#### Context
+
+Real BGE-M3 introduces `torch`, large downloads, and variable runtime. CI must remain fast and deterministic.
+
+#### Decision
+
+* `StubEmbeddingProvider` and `StubQueryEmbeddingProvider` remain in the codebase.
+* Default `build_demo_environment()` uses stub providers unless configured for real embeddings.
+* Real-model tests are opt-in via `@pytest.mark.embedding_model`, excluded from default CI.
+* `rag demo info` pipeline label distinguishes stub vs real dense embedding modes.
+
+#### Consequences
+
+* CI validation stays lightweight.
+* Operators opt into real embeddings deliberately.

@@ -2,6 +2,7 @@
 
 from knowledge_assistant.indexing.config import IndexingSettings
 from knowledge_assistant.indexing.embeddings import (
+    BgeM3EmbeddingProvider,
     EmbeddingProvider,
     StubEmbeddingProvider,
 )
@@ -20,6 +21,7 @@ __all__ = [
     "ChunkingError",
     "DocumentLoadError",
     "EmbeddingDimensionError",
+    "BgeM3EmbeddingProvider",
     "EmbeddingProvider",
     "IndexingError",
     "IndexingPipeline",

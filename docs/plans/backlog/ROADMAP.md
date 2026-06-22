@@ -336,7 +336,7 @@ Replace stub embedding providers with production models.
 
 Plans:
 
-* Plan 16 — Real Embeddings Integration *(backlog — not yet authored)*
+* Plan 16 — Real Dense Embeddings Integration *(completed — [16-real-dense-embeddings-integration.md](../completed/16-real-dense-embeddings-integration.md))*
 
 Scope:
 
