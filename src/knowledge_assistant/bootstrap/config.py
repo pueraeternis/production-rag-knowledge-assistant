@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal, Self, cast
 
@@ -50,7 +50,9 @@ class BootstrapSettings:
     corpus_root: Path
     storage_settings: StorageSettings
     reranker_mode: RerankerMode = "stub"
-    bge_reranker_settings: BgeRerankerSettings = BgeRerankerSettings()
+    bge_reranker_settings: BgeRerankerSettings = field(
+        default_factory=BgeRerankerSettings,
+    )
     embedding_mode: EmbeddingMode = "stub"
     embedding_runtime_settings: EmbeddingRuntimeSettings | None = None
 

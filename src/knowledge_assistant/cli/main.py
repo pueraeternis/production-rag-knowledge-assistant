@@ -4,8 +4,30 @@ from __future__ import annotations
 
 import argparse
 import sys
+from pathlib import Path
 
 from knowledge_assistant.cli import demo as demo_commands
+from knowledge_assistant.cli import evaluate as evaluate_commands
+
+
+def _add_evaluate_shared_options(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--dataset",
+        type=Path,
+        default=evaluate_commands.DEFAULT_BENCHMARK_PATH,
+        help="benchmark JSON path",
+    )
+    parser.add_argument(
+        "--eval-top-k",
+        type=int,
+        default=5,
+        help="retrieval depth for each benchmark case",
+    )
+    parser.add_argument(
+        "--metrics-k",
+        default="1,3,5",
+        help="comma-separated K values for Hit Rate@K and Recall@K",
+    )
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -49,6 +71,33 @@ def build_parser() -> argparse.ArgumentParser:
         help="confirm collection deletion",
     )
 
+    evaluate_parser = subparsers.add_parser(
+        "evaluate",
+        help="retrieval strategy evaluation",
+    )
+    evaluate_subparsers = evaluate_parser.add_subparsers(
+        dest="evaluate_command",
+        required=True,
+    )
+
+    run_parser = evaluate_subparsers.add_parser(
+        "run",
+        help="evaluate one retrieval strategy",
+    )
+    run_parser.add_argument(
+        "--strategy",
+        required=True,
+        choices=evaluate_commands.CANONICAL_STRATEGIES,
+        help="retrieval strategy to evaluate",
+    )
+    _add_evaluate_shared_options(run_parser)
+
+    compare_parser = evaluate_subparsers.add_parser(
+        "compare",
+        help="evaluate all canonical strategies and compare",
+    )
+    _add_evaluate_shared_options(compare_parser)
+
     return parser
 
 
@@ -66,6 +115,21 @@ def main(argv: list[str] | None = None) -> int:
             )
         if args.demo_command == "reset":
             return demo_commands.run_demo_reset(approved=args.approved)
+
+    if args.command == "evaluate":
+        if args.evaluate_command == "run":
+            return evaluate_commands.run_evaluate_run(
+                strategy=args.strategy,
+                dataset_path=args.dataset,
+                eval_top_k=args.eval_top_k,
+                metrics_k=args.metrics_k,
+            )
+        if args.evaluate_command == "compare":
+            return evaluate_commands.run_evaluate_compare(
+                dataset_path=args.dataset,
+                eval_top_k=args.eval_top_k,
+                metrics_k=args.metrics_k,
+            )
 
     parser.error(f"unknown command: {args.command}")
     return 2

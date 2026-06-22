@@ -508,7 +508,23 @@ ComparisonReport
 
 **Metric semantics (ADR-049):** relevance matching uses normalized `SearchResult.source.document_path` against registry-resolved expected paths. NDCG is deferred.
 
-**Evaluation target (ADR-050):** `EvaluationRunner` accepts any structurally compatible `Retriever`; concrete retriever wiring lives outside `evaluation/` production modules.
+**Evaluation target (ADR-050):** `EvaluationRunner` accepts any structurally compatible `Retriever`; concrete retriever wiring lives outside `evaluation/` production modules (bootstrap strategy assembly per ADR-068; CLI orchestration per ADR-067).
+
+**Execution workflow (Plan 18, ADR-067):** offline retrieval evaluation is orchestrated by `cli/evaluate.py` — not by `evaluation/` production modules, MCP, or the agent:
+
+```text
+BootstrapSettings.from_env()
+        ↓
+build_demo_environment()
+        ↓
+build_retriever_for_strategy(env, strategy)    ← bootstrap/retrievers.py
+        ↓
+load_evaluation_dataset(...)
+        ↓
+EvaluationRunner.run(retriever, ...)
+        ↓
+format_evaluation_report / compare_evaluation_reports
+```
 
 **Dependency rule:** evaluation production code may depend on `knowledge_assistant.core`, `knowledge_assistant.retrieval.protocol.Retriever`, and the Python standard library only. It must not import `storage`, `indexing`, `mcp_server`, `llm`, `agent`, LangGraph, LlamaIndex, or concrete retrieval orchestrators. `retrieval/` production code must not import `evaluation/`.
 
@@ -532,13 +548,16 @@ FusionRetriever
         ↓
 StubReranker or BgeReranker + RerankRetriever
         ↓
-DemoEnvironment
+DemoEnvironment (+ cached RetrievalStack)
+        ↓
+build_retriever_for_strategy(env, strategy)   ← Plan 18 (dense/sparse/fusion/rerank)
 ```
 
 | Module | Responsibility |
 | ------ | -------------- |
 | `config.py` | `BootstrapSettings` — corpus root, Qdrant URL, collection name, vector dimensions, `embedding_mode`, reranker mode/settings |
 | `environment.py` | `DemoEnvironment`, `build_demo_environment()`, corpus/collection status helpers, pipeline label |
+| `retrievers.py` | `RetrievalStrategy`, `RetrievalStack`, `build_retrieval_stack()`, `build_retriever_for_strategy()` |
 
 **Canonical demo retrieval pipeline (ADR-053, ADR-065):** `RerankRetriever(FusionRetriever(DenseRetriever, SparseRetriever), reranker)` where dense providers are stub or real BGE-M3 (Plan 16) and `reranker` is `StubReranker()` by default or `BgeReranker` when `RAG_RERANKER_MODE=real`. `rag demo info` reports embedding and reranker modes in the pipeline label without triggering model loading.
 
@@ -552,9 +571,9 @@ DemoEnvironment
 
 **Dependency rule:** bootstrap may import `storage`, `indexing`, `embeddings`, the public `retrieval` package API, and `core`. It must not import `cli`, `agent`, `mcp_server`, `llm`, `evaluation`, `qdrant_client`, LangGraph, MCP SDK, `torch`, or FlagEmbedding directly. Retrieval orchestrators must be imported from `knowledge_assistant.retrieval`, not internal retrieval submodules.
 
-**Consumers:** `cli` (demo commands), tests, and future `rag evaluate` / `rag chat` wiring. Bootstrap complements but does not replace `agent/wiring.py` MCP adapters.
+**Consumers:** `cli` (demo and evaluate commands), tests, and future `rag chat` wiring. Bootstrap complements but does not replace `agent/wiring.py` MCP adapters.
 
-See [ADR-051](DECISIONS.md#adr-051-demo-bootstrap-composition-root) through [ADR-060](DECISIONS.md#adr-060-stub-providers-remain-default-for-ci-and-fast-tests).
+See [ADR-051](DECISIONS.md#adr-051-demo-bootstrap-composition-root) through [ADR-070](DECISIONS.md#adr-070-real-model-benchmark-expectations).
 
 ---
 
@@ -571,8 +590,8 @@ rag demo load                                    ← index canonical knowledge/ 
         ↓
 (index ready)
         ↓
-future: rag evaluate                             ← Plan 18
-future: rag chat                                 ← Plan 19
+rag evaluate run / compare                       ← Plan 18
+rag chat                                         ← Plan 19
 ```
 
 | Command | Purpose | Mutations |
@@ -583,9 +602,54 @@ future: rag chat                                 ← Plan 19
 
 **Approval gates (ADR-054):** `demo load` refuses to modify an existing collection unless both `--rebuild` and `--approve` are supplied. `demo reset` requires `--approve` on every invocation. CLI uses non-interactive flags only (no `input()` prompts).
 
-**Dependency rule:** CLI production modules may import `knowledge_assistant.bootstrap` and the Python standard library only. CLI must not import `qdrant_client`, `storage`, `indexing`, `retrieval`, `agent`, `mcp_server`, `llm`, or `evaluation`.
+**Dependency rule:** `cli/demo.py` may import `knowledge_assistant.bootstrap` and the Python standard library only. `cli/demo.py` must not import `evaluation`.
 
 See [ADR-052](DECISIONS.md#adr-052-cli-owns-demo-orchestration).
+
+---
+
+## CLI Evaluate Commands
+
+Plan 18 delivers retrieval strategy evaluation orchestration in `knowledge_assistant.cli.evaluate`. The `rag` entrypoint exposes `evaluate run` and `evaluate compare`. Evaluate commands validate prerequisites, assemble strategy retrievers via bootstrap, invoke Plan 13 evaluation APIs, and render reports to stdout.
+
+```text
+rag evaluate run --strategy {dense,sparse,fusion,rerank}
+        ↓
+build_demo_environment()
+        ↓
+validate dataset + non-empty collection
+        ↓
+build_retriever_for_strategy(env, strategy)
+        ↓
+EvaluationRunner.run(...)
+        ↓
+configuration banner + format_evaluation_report
+
+rag evaluate compare
+        ↓
+(same prerequisites, once)
+        ↓
+for strategy in CANONICAL_STRATEGIES: EvaluationRunner.run(...)
+        ↓
+compare_evaluation_reports(...)
+        ↓
+configuration banner + format_comparison_report
+```
+
+| Command | Purpose | Mutations |
+| ------- | ------- | --------- |
+| `rag evaluate run` | Evaluate one canonical strategy against the benchmark | None (read-only on index and benchmark JSON) |
+| `rag evaluate compare` | Evaluate all four strategies and print side-by-side comparison | None |
+
+**Prerequisites:** corpus indexed via `rag demo load`; benchmark dataset exists (default `data/evaluation/retrieval_benchmark_v1.json`). Empty or missing collection fails with exit code `3` and directs the operator to `rag demo load`.
+
+**Provider modes (ADR-070):** evaluate inherits `RAG_EMBEDDING_MODE` and `RAG_RERANKER_MODE` from bootstrap. Stub modes run successfully but are not authoritative for model-quality benchmark claims; meaningful results require real embeddings and a corpus reindexed with those embeddings.
+
+**Exit codes:** `0` success; `1` operational failure; `2` usage/settings error; `3` precondition failure (missing dataset or empty collection).
+
+**Dependency rule:** `cli/evaluate.py` may import `knowledge_assistant.bootstrap`, `knowledge_assistant.evaluation`, and the Python standard library only. `cli/main.py` imports `cli.demo` and `cli.evaluate` only. Evaluate must not import `storage`, `indexing`, concrete `retrieval`, `qdrant_client`, `agent`, `mcp_server`, or `llm`.
+
+See [ADR-067](DECISIONS.md#adr-067-retrieval-evaluation-execution-ownership) through [ADR-070](DECISIONS.md#adr-070-real-model-benchmark-expectations).
 
 ---
 
@@ -602,7 +666,7 @@ src/knowledge_assistant/
     storage/        # Qdrant integration
     evaluation/     # retrieval benchmark evaluation and strategy comparison
     bootstrap/      # demo composition root (storage + indexing + retrieval wiring)
-    cli/            # CLI entrypoints (rag demo commands)
+    cli/            # CLI entrypoints (rag demo and evaluate commands)
 ```
 
 ---

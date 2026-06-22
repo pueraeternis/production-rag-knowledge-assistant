@@ -376,27 +376,25 @@ Run Dense vs Sparse vs Fusion vs Rerank against the evaluation benchmark using r
 
 Plans:
 
-* Plan 18 — Retrieval Strategy Evaluation *(backlog — not yet authored)*
+* Plan 18 — Retrieval Strategy Evaluation *(completed)*
 
 Scope:
 
-* index canonical corpus (via Plan 15 bootstrap or equivalent wiring)
-* run all four retrieval strategies through `EvaluationRunner`
+* index canonical corpus (via Plan 15 bootstrap)
+* run all four retrieval strategies through `EvaluationRunner` via `rag evaluate`
 * produce side-by-side strategy comparison
 
 Outputs:
 
-* `ComparisonReport`
-* retrieval metrics
-* benchmark results
+* `ComparisonReport` via `rag evaluate compare`
+* retrieval metrics (Hit Rate@K, Recall@K, MRR)
+* CLI stdout reports
 
 Notes:
 
-Requires Plan 14 corpus, Plan 15 bootstrap workflow, and real model integration (Phases 11–12) for meaningful results. Framework and benchmark from Plan 13 are prerequisites.
+Requires Plan 14 corpus, Plan 15 bootstrap workflow, and real model integration (Phases 11–12) for meaningful absolute benchmark quality. Framework and benchmark from Plan 13 are prerequisites. Stub provider modes verify wiring without authoritative model-quality claims (ADR-070).
 
----
-
-# Phase 14 — Interactive Chat Experience
+**Next roadmap phase:** Phase 14 — Interactive Chat Experience (Plan 19).
 
 Goal:
 

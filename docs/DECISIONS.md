@@ -2127,3 +2127,115 @@ The real reranker introduces the first retrieval-layer cross-encoder runtime. Wi
 * Model runtime dependencies remain localized to retrieval.
 * Bootstrap remains a composition root rather than a model inference layer.
 * MCP, agent, and evaluation code stay independent from reranker runtime details.
+
+---
+
+### ADR-067: Retrieval Evaluation Execution Ownership
+
+**Status:** Accepted
+
+**Date:** 2026-06-22
+
+#### Context
+
+Plan 13 owns retrieval-quality measurement but deliberately excludes retriever construction and CLI exposure. Plan 15 established `knowledge_assistant.bootstrap` as the demo composition root. Without explicit execution ownership, evaluate workflow logic could land in `evaluation/`, `mcp_server`, or ad hoc scripts — duplicating wiring and blurring component responsibilities.
+
+#### Decision
+
+* **Evaluation execution** is the offline workflow that loads a benchmark, selects a retriever, runs `EvaluationRunner`, and renders reports. It is not a new package and does not move into `evaluation/` production modules.
+* **CLI (`knowledge_assistant.cli.evaluate`)** owns evaluation command orchestration: argument parsing, prerequisite checks, bootstrap strategy assembly, Plan 13 evaluation APIs, stdout rendering, and exit codes.
+* **Bootstrap (`knowledge_assistant.bootstrap`)** owns strategy retriever assembly from a shared `DemoEnvironment` / retrieval stack — the only production location that constructs concrete orchestrators for evaluation.
+* **`knowledge_assistant.evaluation`** remains unchanged in responsibility: dataset, runner, metrics, reports, comparison — no bootstrap/storage/indexing imports.
+* MCP, agent, and LLM layers do not participate in retrieval evaluation execution.
+
+#### Consequences
+
+* Plan 13 import-boundary tests remain valid.
+* `rag evaluate` extends CLI ownership without growing MCP or agent scope.
+* Integration tests can orchestrate the same workflow by calling bootstrap + evaluation APIs directly or via CLI `main([...])`.
+
+---
+
+### ADR-068: Bootstrap-Owned Strategy Retriever Assembly
+
+**Status:** Accepted
+
+**Date:** 2026-06-22
+
+#### Context
+
+Plan 15 wires one canonical `RerankRetriever` stack in `build_demo_environment()`. Plan 18 must evaluate four distinct strategies against the same indexed corpus and provider configuration without duplicating retriever construction in CLI modules.
+
+#### Decision
+
+* Add bootstrap-level strategy retriever assembly: `build_retriever_for_strategy(environment, strategy) -> Retriever`.
+* Extract a shared internal retrieval stack builder used by both `build_demo_environment()` and strategy selection.
+* Canonical strategy identifiers and stacks:
+
+| `strategy` | `retriever_label` | Retrieval stack evaluated |
+| ---------- | ----------------- | ------------------------- |
+| `dense` | `"dense"` | `DenseRetriever` only |
+| `sparse` | `"sparse"` | `SparseRetriever` only |
+| `fusion` | `"fusion"` | `FusionRetriever(dense_retriever, sparse_retriever)` |
+| `rerank` | `"rerank"` | `RerankRetriever(base_retriever=fusion_retriever, reranker=...)` |
+
+* `build_demo_environment().retriever` remains the canonical **rerank** stack.
+* Bootstrap may import the public `knowledge_assistant.retrieval` package API only.
+* Bootstrap must not import `knowledge_assistant.evaluation`.
+
+#### Consequences
+
+* Strategy comparison uses identical infrastructure except the selected orchestrator boundary.
+* Plans 16–17 provider toggles automatically apply to all four strategies without evaluation code changes.
+
+---
+
+### ADR-069: Strategy Comparison Contract
+
+**Status:** Accepted
+
+**Date:** 2026-06-22
+
+#### Context
+
+Plan 13 defines `compare_evaluation_reports(...)` validation across reports. Plan 18 must define how CLI `rag evaluate compare` produces a valid `ComparisonReport` for the four canonical strategies.
+
+#### Decision
+
+* **`rag evaluate compare`** runs evaluation for all four canonical strategies in fixed order: dense → sparse → fusion → rerank.
+* Each run uses the same dataset, `EvaluationSettings`, bootstrap environment, and canonical `retriever_label` values.
+* Comparison assembly calls existing `compare_evaluation_reports(tuple_of_four_reports)` — no fork of comparison logic.
+* `compare_evaluation_reports` mismatch failures propagate as command failure (fail-fast).
+* Single-strategy `rag evaluate run` may be invoked independently; compare does not require prior `run` invocations.
+* Benchmark JSON is read-only during evaluation.
+
+#### Consequences
+
+* Lecture demo output is reproducible: one command prints a stable four-column comparison table.
+* Plan 13 comparison unit tests remain authoritative for validation rules.
+
+---
+
+### ADR-070: Real-Model Benchmark Expectations
+
+**Status:** Accepted
+
+**Date:** 2026-06-22
+
+#### Context
+
+Bootstrap defaults to stub dense embeddings and stub reranker. Plan 16 requires full reindex after switching to real embeddings. Plan 18 exposes benchmark execution to operators who may run evaluate without real models or without reindexing.
+
+#### Decision
+
+* **`rag evaluate` uses bootstrap provider modes by default** — `RAG_EMBEDDING_MODE` and `RAG_RERANKER_MODE`; no separate evaluation-specific model toggle.
+* **Stub mode:** commands run successfully against any non-empty indexed collection; metrics are valid numerically but absolute Hit@K / MRR values are not meaningful for production-quality or lecture claims about BGE-M3 / BGE reranker effectiveness.
+* **Meaningful benchmark mode:** `RAG_EMBEDDING_MODE=real`, corpus indexed with real dense embeddings, and optionally `RAG_RERANKER_MODE=real` for rerank strategy quality.
+* CLI prints a configuration banner before results; when either mode is stub, the banner includes an explicit non-authoritative benchmark notice.
+* Default CI and unit/integration tests use stub providers and must not download or execute real models.
+
+#### Consequences
+
+* Operators can verify evaluation wiring in lightweight environments.
+* Lecture documentation can state clear prerequisites for publishing benchmark numbers.
+* Plan 13 evaluation APIs remain mode-agnostic.

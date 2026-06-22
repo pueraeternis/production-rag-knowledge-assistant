@@ -6,13 +6,31 @@ Chronological record of completed milestones for Production RAG Knowledge Assist
 
 ## Current Status (2026-06-22)
 
-**Latest completed plan:** [Plan 17 — Real Reranker Integration](plans/completed/17-real-reranker.md) (Phase 12 — Real Reranker Integration).
+**Latest completed plan:** [Plan 18 — Retrieval Strategy Evaluation](plans/completed/18-retrieval-strategy-evaluation.md) (Phase 13 — End-to-End Evaluation).
 
-**Current phase:** Phase 13 — End-to-End Evaluation ([ROADMAP.md](plans/backlog/ROADMAP.md)).
+**Current phase:** Phase 14 — Interactive Chat Experience ([ROADMAP.md](plans/backlog/ROADMAP.md)).
 
 **Authorized implementation scope:** see [docs/plans/active/](plans/active/) (none when no plan is active).
 
 **Deferred from Plan 12:** query rewriting and retrieval retry (proposed Plan 12b), MCP SDK transport (proposed Plan 12c), interactive CLI chat (Plan 19).
+
+---
+
+## 2026-06-22 — Retrieval Strategy Evaluation
+
+**Plan:** [18-retrieval-strategy-evaluation.md](plans/completed/18-retrieval-strategy-evaluation.md)
+
+Exposed end-to-end retrieval strategy evaluation through bootstrap and CLI:
+
+* added `bootstrap/retrievers.py` with `RetrievalStrategy`, shared `RetrievalStack`, and `build_retriever_for_strategy()`;
+* refactored `build_demo_environment()` to use shared retrieval stack builder (canonical `retriever` remains full rerank stack);
+* added `rag evaluate run` and `rag evaluate compare` CLI commands with precondition checks, configuration banner, and Plan 13 report formatters;
+* evaluate inherits `RAG_EMBEDDING_MODE` and `RAG_RERANKER_MODE` from bootstrap (ADR-070 stub-mode notice);
+* unit tests for strategy assembly, CLI parsing, preconditions, and import boundaries;
+* integration tests for evaluate run/compare against indexed fixture corpus;
+* recorded ADR-067 through ADR-070 in `docs/DECISIONS.md`;
+* documented evaluation execution workflow in `docs/ARCHITECTURE.md` and `README.md`;
+* validation suite passed: ruff format, ruff check, basedpyright, pytest (542 tests, 3 deselected model markers).
 
 ---
 

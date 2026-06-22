@@ -9,6 +9,10 @@ from knowledge_assistant.bootstrap.config import (
     BootstrapSettings,
     retrieval_pipeline_label,
 )
+from knowledge_assistant.bootstrap.retrievers import (
+    RetrievalStack,
+    build_retrieval_stack,
+)
 from knowledge_assistant.core import IndexingSource, IndexingSourceKind
 from knowledge_assistant.embeddings import (
     DenseEmbeddingRuntime,
@@ -23,15 +27,9 @@ from knowledge_assistant.indexing.documents import discover_files
 from knowledge_assistant.retrieval import (
     BgeM3QueryEmbeddingProvider,
     BgeReranker,
-    DenseRetriever,
-    FusionRetrievalSettings,
-    FusionRetriever,
-    RerankRetrievalSettings,
     RerankRetriever,
-    SparseRetriever,
     StubQueryEmbeddingProvider,
     StubReranker,
-    StubSparseQueryEmbeddingProvider,
 )
 from knowledge_assistant.storage import VectorStore, create_qdrant_vector_store
 
@@ -47,6 +45,7 @@ class DemoEnvironment:
     indexing_pipeline: IndexingPipeline
     retriever: RerankRetriever
     reranker: StubReranker | BgeReranker
+    retrieval_stack: RetrievalStack
 
     @property
     def pipeline_label(self) -> str:
@@ -94,12 +93,6 @@ def _build_dense_embedding_runtime(
     return create_shared_dense_embedding_runtime(settings.embedding_runtime_settings)
 
 
-def _build_reranker(settings: BootstrapSettings) -> StubReranker | BgeReranker:
-    if settings.reranker_mode == "stub":
-        return StubReranker()
-    return BgeReranker(settings=settings.bge_reranker_settings)
-
-
 def build_demo_environment(
     *,
     settings: BootstrapSettings | None = None,
@@ -129,33 +122,19 @@ def build_demo_environment(
         settings=resolved_settings.indexing_settings,
     )
 
-    dense_retriever = DenseRetriever(
+    retrieval_stack = build_retrieval_stack(
+        settings=resolved_settings,
         vector_store=resolved_store,
-        embedding_provider=query_embedding_provider,
-        settings=resolved_settings.dense_retrieval_settings,
-    )
-    sparse_retriever = SparseRetriever(
-        vector_store=resolved_store,
-        embedding_provider=StubSparseQueryEmbeddingProvider(),
-    )
-    fusion_retriever = FusionRetriever(
-        dense_retriever=dense_retriever,
-        sparse_retriever=sparse_retriever,
-        settings=FusionRetrievalSettings(),
-    )
-    reranker = _build_reranker(resolved_settings)
-    retriever = RerankRetriever(
-        base_retriever=fusion_retriever,
-        reranker=reranker,
-        settings=RerankRetrievalSettings(),
+        query_embedding_provider=query_embedding_provider,
     )
 
     return DemoEnvironment(
         settings=resolved_settings,
         vector_store=resolved_store,
         indexing_pipeline=indexing_pipeline,
-        retriever=retriever,
-        reranker=reranker,
+        retriever=retrieval_stack.rerank_retriever,
+        reranker=retrieval_stack.reranker,
+        retrieval_stack=retrieval_stack,
     )
 
 

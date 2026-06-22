@@ -79,7 +79,7 @@ uv run rag demo load --rebuild --approve
 
 Useful settings: `RAG_EMBEDDING_MODEL`, `RAG_EMBEDDING_BATCH_SIZE`, `RAG_EMBEDDING_MAX_LENGTH`, `RAG_EMBEDDING_NORMALIZE`, and `RAG_EMBEDDING_ENABLE_REAL_TESTS=true` for the optional local real-model smoke test — see `.env.example`.
 
-**Evaluation comparison:** index with stub vs real bootstrap settings, run `EvaluationRunner` with distinct labels, then `compare_evaluation_reports` — Plan 13 APIs are unchanged.
+**Evaluation comparison:** index with stub vs real bootstrap settings, run `rag evaluate run` or `rag evaluate compare` — see [Retrieval Evaluation](#retrieval-evaluation).
 
 See [Plan 16](docs/plans/completed/16-real-dense-embeddings-integration.md).
 
@@ -104,7 +104,38 @@ See [Plan 17](docs/plans/completed/17-real-reranker.md).
 
 ## Retrieval Evaluation
 
-Plan 13 delivers the retrieval evaluation layer in `knowledge_assistant.evaluation` — benchmark loading, Hit Rate@K / Recall@K / MRR metrics, `EvaluationRunner`, and multi-strategy `ComparisonReport` assembly. The committed benchmark lives under `data/evaluation/`. See [Plan 13](docs/plans/completed/13-evaluation-framework.md) and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+Plan 13 delivers the retrieval evaluation layer in `knowledge_assistant.evaluation` — benchmark loading, Hit Rate@K / Recall@K / MRR metrics, `EvaluationRunner`, and multi-strategy `ComparisonReport` assembly. The committed benchmark lives under `data/evaluation/`.
+
+Plan 18 wires evaluation execution through the `rag` CLI after the corpus is indexed:
+
+```bash
+# Prerequisites: corpus generated and indexed (see Demo Bootstrap above)
+uv run rag demo load
+
+# Evaluate one strategy
+uv run rag evaluate run --strategy dense
+uv run rag evaluate run --strategy sparse
+uv run rag evaluate run --strategy fusion
+uv run rag evaluate run --strategy rerank
+
+# Compare all four canonical strategies
+uv run rag evaluate compare
+```
+
+Optional flags: `--dataset PATH` (default `data/evaluation/retrieval_benchmark_v1.json`), `--eval-top-k INT` (default `5`), `--metrics-k` comma-separated (default `1,3,5`).
+
+**Stub vs real benchmarks (ADR-070):** evaluate inherits `RAG_EMBEDDING_MODE` and `RAG_RERANKER_MODE` from bootstrap. Stub modes run successfully and are useful for wiring checks, but absolute metric values are not authoritative for lecture claims about BGE-M3 or the BGE reranker. For meaningful benchmark numbers:
+
+```bash
+export RAG_EMBEDDING_MODE=real
+export RAG_RERANKER_MODE=real   # optional; affects rerank strategy only
+uv run rag demo load --rebuild --approve
+uv run rag evaluate compare
+```
+
+Evaluate fails with exit code `3` when the collection is missing or empty — run `rag demo load` first.
+
+See [Plan 13](docs/plans/completed/13-evaluation-framework.md), [Plan 18](docs/plans/completed/18-retrieval-strategy-evaluation.md), and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ## Python Setup
 

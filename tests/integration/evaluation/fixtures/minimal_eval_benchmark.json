@@ -1,0 +1,30 @@
+{
+  "dataset_id": "integration_eval_fixture",
+  "description": "Minimal benchmark aligned with integration fixture corpus",
+  "corpus_version": "test",
+  "documents": {
+    "doc-a": {
+      "path": "knowledge/doc-a.md"
+    },
+    "doc-b": {
+      "path": "knowledge/doc-b.md"
+    }
+  },
+  "cases": [
+    {
+      "case_id": "case-1",
+      "question": "What is the remote work policy?",
+      "expected_document_key": "doc-a"
+    },
+    {
+      "case_id": "case-2",
+      "question": "What are the travel expense guidelines?",
+      "expected_document_key": "doc-b"
+    },
+    {
+      "case_id": "case-3",
+      "question": "remote work policy details",
+      "expected_document_key": "doc-a"
+    }
+  ]
+}

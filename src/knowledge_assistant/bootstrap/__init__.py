@@ -11,13 +11,27 @@ from knowledge_assistant.bootstrap.environment import (
     DemoEnvironment,
     build_demo_environment,
 )
+from knowledge_assistant.bootstrap.retrievers import (
+    CANONICAL_STRATEGIES,
+    RetrievalStack,
+    RetrievalStrategy,
+    build_retrieval_stack,
+    build_retriever_for_strategy,
+    strategy_stack_description,
+)
 
 __all__ = (
-    "BootstrapSettings",
+    "CANONICAL_STRATEGIES",
     "DEMO_RETRIEVAL_PIPELINE_LABEL",
-    "DemoEnvironment",
     "REAL_PIPELINE_LABEL",
     "STUB_PIPELINE_LABEL",
+    "BootstrapSettings",
+    "DemoEnvironment",
+    "RetrievalStack",
+    "RetrievalStrategy",
     "build_demo_environment",
+    "build_retrieval_stack",
+    "build_retriever_for_strategy",
     "retrieval_pipeline_label",
+    "strategy_stack_description",
 )
