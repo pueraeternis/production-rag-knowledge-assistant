@@ -87,6 +87,8 @@ class TestChatPreconditions:
         captured = capsys.readouterr()
         assert exit_code == 0
         assert "Chat ready" in captured.out
+        assert "LLM model: test-model" in captured.out
+        assert "http://localhost:8000" not in captured.out
         assert "Streamed answer" in captured.out
 
     def test_run_chat_suppresses_third_party_advisory_output(

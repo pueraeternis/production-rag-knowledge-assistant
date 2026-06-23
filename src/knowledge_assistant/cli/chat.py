@@ -118,11 +118,7 @@ def print_chat_banner(
     )
     print(f"  Pipeline: {environment.pipeline_label}")
     print(f"  Embedding mode: {embedding_mode} | Reranker mode: {reranker_mode}")
-    print(
-        "  LLM: "
-        f"{session.llm_settings.base_url} "
-        f"(model: {session.llm_settings.default_model})",
-    )
+    print(f"  LLM model: {session.llm_settings.default_model}")
     streaming_label = "enabled (default)" if streaming_enabled else "disabled"
     print(f"  Streaming: {streaming_label}")
 

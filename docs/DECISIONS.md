@@ -2479,12 +2479,14 @@ Plan 12 delivers `run_turn` but no user-facing execution path. Chat loop logic m
 #### Decision
 
 * `rag chat` prints a configuration banner after building `ChatSession` (no LLM probe).
+* Banner shows the configured LLM model name only — not `LlmSettings.base_url` (endpoint URLs may expose internal hostnames or IPs in demos and screen shares).
 * Preconditions (exit `3`): corpus exists with indexable documents, non-empty collection, resolvable `LlmSettings.from_env()`.
 * LLM connectivity is validated on the first user turn, not at startup.
 
 #### Consequences
 
 * Faster startup; no spurious API calls.
+* Operators configure the endpoint via `LLM_BASE_URL` in the environment; it is not echoed to the terminal.
 
 ---
 

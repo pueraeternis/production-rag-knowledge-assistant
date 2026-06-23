@@ -347,6 +347,7 @@ uv run rag chat --no-sources
 **Behavior notes:**
 
 - Chat validates corpus and index preconditions at startup (exit `3` if missing).
+- The startup banner shows the configured LLM model name only — not `LLM_BASE_URL` (endpoint URLs may contain internal hostnames or IPs).
 - LLM connectivity is checked on the first message, not at startup.
 - Off-topic questions (general knowledge, geography, trivia) are answered directly **without** `search_documents`.
 - Corpus questions trigger hybrid retrieval and render the numbered Sources block unless `--no-sources` is set.

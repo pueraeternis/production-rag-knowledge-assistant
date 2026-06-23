@@ -4,7 +4,7 @@ Chronological record of completed milestones for Production RAG Knowledge Assist
 
 ---
 
-## Current Status (2026-06-22)
+## Current Status (2026-06-23)
 
 **Latest completed plan:** [Plan 20 — Real Sparse Embeddings Integration](plans/completed/20-real-sparse-embeddings-integration.md) (Phase 15 — Real Sparse Embeddings Integration).
 
@@ -13,6 +13,13 @@ Chronological record of completed milestones for Production RAG Knowledge Assist
 **Authorized implementation scope:** none (no active plan).
 
 **Deferred from Plan 12:** query rewriting and retrieval retry (proposed Plan 12b), MCP SDK transport (proposed Plan 12c).
+
+---
+
+## 2026-06-23 — Chat Banner Omits LLM Endpoint URL
+
+* `rag chat` startup banner prints `LLM model: <name>` only; `LLM_BASE_URL` is no longer shown (avoids exposing internal IPs/hostnames in terminal output).
+* Documented in README behavior notes and ADR-077.
 
 ---
 
