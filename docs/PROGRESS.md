@@ -4,15 +4,32 @@ Chronological record of completed milestones for Production RAG Knowledge Assist
 
 ---
 
-## Current Status (2026-06-23)
+## Current Status (2026-07-01)
 
-**Latest completed plan:** [Plan 20 — Real Sparse Embeddings Integration](plans/completed/20-real-sparse-embeddings-integration.md) (Phase 15 — Real Sparse Embeddings Integration).
+**Latest completed plan:** [Plan 21 — Audit Portfolio Polish and Claim Precision](plans/active/21-audit-portfolio-polish.md) (Phase 1).
 
-**Current phase:** Phase 15 complete. See [ROADMAP.md](plans/backlog/ROADMAP.md) for future direction.
+**Current phase:** Plan 21 Phase 1 complete. Phase 2 and Phase 3 remain deferred within Plan 21.
 
-**Authorized implementation scope:** none (no active plan).
+**Authorized implementation scope:** none (no active plan beyond deferred Plan 21 phases).
 
 **Deferred from Plan 12:** query rewriting and retrieval retry (proposed Plan 12b), MCP SDK transport (proposed Plan 12c).
+
+---
+
+## 2026-07-01 — Audit Portfolio Polish (Phase 1)
+
+**Plan:** [21-audit-portfolio-polish.md](plans/active/21-audit-portfolio-polish.md)
+
+Portfolio credibility and open-source readiness improvements from the 2026-07-01 engineering audit:
+
+* added `LICENSE` (MIT), `CONTRIBUTING.md`, `SECURITY.md`, and GitHub issue/PR templates;
+* added README portfolio summary, implementation-status table, MCP/production claim precision, stub-first smoke demo with expected outputs, benchmark limitations, and reproduction workflow;
+* added ADR index and current key decisions summary to `docs/DECISIONS.md`;
+* added short corpus excerpts under `docs/examples/` for GitHub inspection;
+* documented operational non-goals and session-local memory in README;
+* validation suite passed: ruff format, ruff check, basedpyright, pytest.
+
+**Deferred within Plan 21:** optional model dependency extra, GitHub Actions CI, troubleshooting guide (Phase 2); Makefile/justfile wrappers (Phase 3).
 
 ---
 

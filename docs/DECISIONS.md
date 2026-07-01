@@ -6,6 +6,123 @@ For project vision and scope, see [PROJECT.md](../PROJECT.md).
 
 ---
 
+## ADR Index
+
+Quick navigation to all decision records. ADR bodies are unchanged; the **Status** column describes current architectural relevance:
+
+| Status | Meaning |
+| ------ | ------- |
+| **Active** | Governs the current system — follow this constraint when changing code or docs. |
+| **Historical** | Preserved for context; a later plan fulfilled or absorbed the original intent (see Notes). |
+| **Superseded** | Obsolete prescription — a later ADR replaced the technical decision (see Notes). |
+
+### Current key decisions
+
+These constraints shape the system today:
+
+- **Domain model independence** — core types use frozen dataclasses and `NewType` IDs; no Pydantic or infrastructure imports in `core` ([ADR-001](#adr-001-domain-model-technology)).
+- **Vector store protocol** — indexing and retrieval depend on `VectorStore`, not Qdrant client APIs ([ADR-002](#adr-002-vectorstore-protocol-abstraction)).
+- **LlamaIndex containment** — document loading and chunking stay inside the indexing layer ([ADR-007](#adr-007-llamaindex-containment-in-indexing-layer)).
+- **MCP handler boundary** — knowledge access uses typed in-process handlers matching the MCP tool contract; SDK transport is deferred ([ADR-034](#adr-034-mcp-handler-layer-without-sdk-runtime), [ADR-043](#adr-043-in-process-mcp-handler-adapters-before-mcp-sdk-transport)).
+- **Retrieval score semantics** — fused RRF scores and reranker scores are ordinal within their stage, not cross-comparable ([ADR-023](#adr-023-reciprocal-rank-fusion-algorithm), [ADR-026](#adr-026-reranked-score-semantics-and-candidate-pool)).
+- **Real model opt-in** — stub embedding and reranker providers are the default; real BGE runtimes require explicit env configuration and full reindex ([ADR-060](#adr-060-stub-providers-remain-default-for-ci-and-fast-tests), [ADR-058](#adr-058-dense-embedding-migration-requires-full-reindex), [ADR-084](#adr-084-sparse-embedding-migration-requires-full-reindex)).
+- **Human approval gates** — destructive index rebuild and collection reset require explicit `--approve` flags ([ADR-012](#adr-012-human-approval-enforced-by-callers), [ADR-054](#adr-054-demo-commands-require-explicit-approval-for-destructive-operations)).
+- **Session-local memory** — chat conversation state is in-process only; durable persistence is out of scope ([ADR-045](#adr-045-in-memory-conversation-state-only), [ADR-073](#adr-073-session-persistence-policy)).
+- **Evaluation scope** — benchmark measures document-level retrieval metrics only; stub mode is not authoritative for model-quality claims ([ADR-049](#adr-049-retrieval-metric-selection), [ADR-070](#adr-070-real-model-benchmark-expectations)).
+
+### Index by layer
+
+| ADR | Title | Status | Layer | Notes |
+| --- | ----- | ------ | ----- | ----- |
+| [001](#adr-001-domain-model-technology) | Domain Model Technology | Active | core | |
+| [033](#adr-033-pydantic-boundary-ownership) | Pydantic Boundary Ownership | Active | core | |
+| [002](#adr-002-vectorstore-protocol-abstraction) | VectorStore Protocol Abstraction | Active | storage | |
+| [003](#adr-003-single-collection-strategy) | Single Collection Strategy | Active | storage | |
+| [004](#adr-004-named-vectors-for-hybrid-retrieval) | Named Vectors for Hybrid Retrieval | Active | storage | |
+| [005](#adr-005-chunk-payload-schema) | Chunk Payload Schema | Active | storage | |
+| [006](#adr-006-storage-does-not-generate-embeddings) | Storage Does Not Generate Embeddings | Active | storage | |
+| [007](#adr-007-llamaindex-containment-in-indexing-layer) | LlamaIndex Containment in Indexing Layer | Active | indexing | |
+| [008](#adr-008-deterministic-uuid5-id-generation) | Deterministic UUID5 ID Generation | Active | indexing | |
+| [009](#adr-009-embeddingprovider-boundary-in-indexing-layer) | EmbeddingProvider Boundary in Indexing Layer | Active | indexing | |
+| [010](#adr-010-sparse-vector-placeholder-until-sparse-retrieval) | Sparse Vector Placeholder Until Sparse Retrieval | Superseded | indexing | Replaced by ADR-081–086 (Plan 20) |
+| [011](#adr-011-local-file-indexing-scope) | Local File Indexing Scope | Active | indexing | |
+| [012](#adr-012-human-approval-enforced-by-callers) | Human Approval Enforced by Callers | Active | indexing | |
+| [013](#adr-013-embedding-boundary-ownership) | Embedding Boundary Ownership | Active | indexing | |
+| [020](#adr-020-reindex-requirement-for-future-sparse-migration) | Reindex Requirement for Future Sparse Migration | Superseded | indexing | Sparse reindex rule now in ADR-084 |
+| [055](#adr-055-dedicated-embeddings-package-for-shared-bge-m3-runtime) | Dedicated Embeddings Package for Shared BGE-M3 Runtime | Active | indexing | |
+| [056](#adr-056-bge-m3-default-runtime-implementation-flagembedding) | BGE-M3 Default Runtime Implementation (FlagEmbedding) | Active | indexing | |
+| [057](#adr-057-bootstrap-owned-shared-embedding-runtime) | Bootstrap-Owned Shared Embedding Runtime | Active | indexing | |
+| [058](#adr-058-dense-embedding-migration-requires-full-reindex) | Dense Embedding Migration Requires Full Reindex | Active | indexing | |
+| [059](#adr-059-dense-vector-normalization-and-dimension-contract) | Dense Vector Normalization and Dimension Contract | Active | indexing | |
+| [060](#adr-060-stub-providers-remain-default-for-ci-and-fast-tests) | Stub Providers Remain Default for CI and Fast Tests | Active | indexing | |
+| [081](#adr-081-real-sparse-embedding-ownership) | Real Sparse Embedding Ownership | Active | indexing | |
+| [082](#adr-082-bge-m3-dual-densesparse-encoding-in-shared-runtime) | BGE-M3 Dual Dense+Sparse Encoding in Shared Runtime | Active | indexing | |
+| [083](#adr-083-lexical-weight-to-qdrant-sparsevector-conversion-contract) | Lexical Weight to Qdrant SparseVector Conversion Contract | Active | indexing | |
+| [084](#adr-084-sparse-embedding-migration-requires-full-reindex) | Sparse Embedding Migration Requires Full Reindex | Active | indexing | |
+| [085](#adr-085-bootstrap-sparse-provider-selection-follows-embedding-mode) | Bootstrap Sparse Provider Selection Follows Embedding Mode | Active | indexing | |
+| [086](#adr-086-stub-sparse-providers-remain-default-for-ci) | Stub Sparse Providers Remain Default for CI | Active | indexing | |
+| [014](#adr-014-dense-retrieval-boundary) | Dense Retrieval Boundary | Active | retrieval | |
+| [015](#adr-015-queryembeddingprovider) | QueryEmbeddingProvider | Active | retrieval | |
+| [016](#adr-016-stub-query-embeddings) | Stub Query Embeddings | Active | retrieval | |
+| [017](#adr-017-sparse-retrieval-boundary) | Sparse Retrieval Boundary | Active | retrieval | |
+| [018](#adr-018-sparsequeryembeddingprovider) | SparseQueryEmbeddingProvider | Active | retrieval | |
+| [019](#adr-019-sparse-embedding-ownership) | Sparse Embedding Ownership | Active | retrieval | |
+| [021](#adr-021-fusion-retrieval-boundary) | Fusion Retrieval Boundary | Active | retrieval | |
+| [022](#adr-022-retriever-protocol-for-composition) | Retriever Protocol for Composition | Active | retrieval | |
+| [023](#adr-023-reciprocal-rank-fusion-algorithm) | Reciprocal Rank Fusion Algorithm | Active | retrieval | |
+| [024](#adr-024-reranking-boundary) | Reranking Boundary | Active | retrieval | |
+| [025](#adr-025-reranker-protocol) | Reranker Protocol | Active | retrieval | |
+| [026](#adr-026-reranked-score-semantics-and-candidate-pool) | Reranked Score Semantics and Candidate Pool | Active | retrieval | |
+| [027](#adr-027-future-bge-cross-encoder-reranker-integration) | Future BGE Cross-Encoder Reranker Integration | Historical | retrieval | Delivered in ADR-061–066 (Plan 16) |
+| [061](#adr-061-real-reranker-stays-behind-the-existing-reranker-protocol) | Real Reranker Stays Behind the Existing Reranker Protocol | Active | retrieval | |
+| [062](#adr-062-minimal-runtime-for-bge-reranking) | Minimal Runtime for BGE Reranking | Active | retrieval | |
+| [063](#adr-063-lazy-reranker-model-loading) | Lazy Reranker Model Loading | Active | retrieval | |
+| [064](#adr-064-reranker-score-semantics-remain-reranker-relevance-scores) | Reranker Score Semantics Remain Reranker-Relevance Scores | Active | retrieval | |
+| [065](#adr-065-stub-default-with-opt-in-real-reranker) | Stub Default with Opt-In Real Reranker | Active | retrieval | |
+| [066](#adr-066-reranker-model-ownership) | Reranker Model Ownership | Active | retrieval | |
+| [028](#adr-028-mcp-server-as-knowledge-boundary) | MCP Server as Knowledge Boundary | Active | MCP | |
+| [029](#adr-029-mcp-tools-vs-resources-split) | MCP Tools vs Resources Split | Active | MCP | |
+| [030](#adr-030-human-approval-boundary-for-index-modification) | Human Approval Boundary for Index Modification | Active | MCP | |
+| [031](#adr-031-source-attribution-contract) | Source Attribution Contract | Active | MCP | |
+| [032](#adr-032-mcp-dependency-boundaries) | MCP Dependency Boundaries | Active | MCP | |
+| [034](#adr-034-mcp-handler-layer-without-sdk-runtime) | MCP Handler Layer Without SDK Runtime | Active | MCP | |
+| [042](#adr-042-langgraph-agent-boundary) | LangGraph Agent Boundary | Active | agent | |
+| [043](#adr-043-in-process-mcp-handler-adapters-before-mcp-sdk-transport) | In-Process MCP Handler Adapters Before MCP SDK Transport | Active | agent | |
+| [044](#adr-044-agent-tool-registry-and-dispatch) | Agent Tool Registry and Dispatch | Active | agent | |
+| [045](#adr-045-in-memory-conversation-state-only) | In-Memory Conversation State Only | Active | agent | |
+| [046](#adr-046-rag-prompt-and-citation-contract) | RAG Prompt and Citation Contract | Active | agent | |
+| [035](#adr-035-openai-compatible-api-standard) | OpenAI-Compatible API Standard | Active | LLM | |
+| [036](#adr-036-llm-boundary-ownership) | LLM Boundary Ownership | Active | LLM | |
+| [037](#adr-037-chat-first-llm-client-protocol) | Chat-First LLM Client Protocol | Active | LLM | |
+| [038](#adr-038-tool-call-transport-dtos-without-orchestration) | Tool-Call Transport DTOs Without Orchestration | Active | LLM | |
+| [039](#adr-039-llm-local-types-and-dataclass-boundary) | LLM-Local Types and Dataclass Boundary | Active | LLM | |
+| [040](#adr-040-environment-configuration-for-llm-settings) | Environment Configuration for LLM Settings | Active | LLM | |
+| [041](#adr-041-embeddings-and-reranking-remain-outside-llm) | Embeddings and Reranking Remain Outside LLM | Active | LLM | |
+| [047](#adr-047-evaluation-layer-ownership) | Evaluation Layer Ownership | Active | evaluation | |
+| [048](#adr-048-evaluation-dataset-format) | Evaluation Dataset Format | Active | evaluation | |
+| [049](#adr-049-retrieval-metric-selection) | Retrieval Metric Selection | Active | evaluation | |
+| [050](#adr-050-retriever-protocol-as-evaluation-target) | Retriever Protocol as Evaluation Target | Active | evaluation | |
+| [067](#adr-067-retrieval-evaluation-execution-ownership) | Retrieval Evaluation Execution Ownership | Active | evaluation | |
+| [068](#adr-068-bootstrap-owned-strategy-retriever-assembly) | Bootstrap-Owned Strategy Retriever Assembly | Active | evaluation | |
+| [069](#adr-069-strategy-comparison-contract) | Strategy Comparison Contract | Active | evaluation | |
+| [070](#adr-070-real-model-benchmark-expectations) | Real-Model Benchmark Expectations | Active | evaluation | |
+| [051](#adr-051-demo-bootstrap-composition-root) | Demo Bootstrap Composition Root | Active | bootstrap | |
+| [052](#adr-052-cli-owns-demo-orchestration) | CLI Owns Demo Orchestration | Active | bootstrap | |
+| [053](#adr-053-canonical-demo-retrieval-pipeline) | Canonical Demo Retrieval Pipeline | Active | bootstrap | |
+| [054](#adr-054-demo-commands-require-explicit-approval-for-destructive-operations) | Demo Commands Require Explicit Approval for Destructive Operations | Active | bootstrap | |
+| [071](#adr-071-chat-execution-ownership) | Chat Execution Ownership | Active | CLI | |
+| [072](#adr-072-conversation-state-lifetime) | Conversation State Lifetime | Active | CLI | |
+| [073](#adr-073-session-persistence-policy) | Session Persistence Policy | Active | CLI | |
+| [074](#adr-074-bootstrap-ownership-of-chat-wiring) | Bootstrap Ownership of Chat Wiring | Active | CLI | |
+| [075](#adr-075-source-citation-rendering) | Source Citation Rendering | Active | CLI | |
+| [076](#adr-076-interactive-loop-design) | Interactive Loop Design | Active | CLI | |
+| [077](#adr-077-startup-validation-behavior) | Startup Validation Behavior | Active | CLI | |
+| [078](#adr-078-streaming-architecture-and-ownership) | Streaming Architecture and Ownership | Active | CLI | |
+| [079](#adr-079-error-handling-recovery-and-ctrl-c) | Error Handling, Recovery, and Ctrl-C | Active | CLI | |
+| [080](#adr-080-streaming-mode-selection-no-automatic-fallback) | Streaming Mode Selection (No Automatic Fallback) | Active | CLI | |
+
+---
+
 ## ADR Template
 
 Use the following template for new decision records.

@@ -1,8 +1,34 @@
 # Production RAG Knowledge Assistant
 
-A local, end-to-end knowledge assistant that demonstrates how production-style RAG systems are built: hybrid retrieval over a vector database, MCP as the knowledge boundary, LangGraph for agent orchestration, and measurable retrieval evaluation.
+A **local educational demo** that demonstrates **production-style architecture patterns** for knowledge assistants: hybrid retrieval over Qdrant, an **MCP-style typed handler boundary** (in-process today; SDK transport deferred), LangGraph agent orchestration, and measurable retrieval evaluation.
 
-The project accompanies a Production RAG lecture. It prioritizes architectural clarity and reproducible workflows over enterprise-scale operations.
+The project accompanies a Production RAG lecture. It prioritizes architectural clarity and reproducible workflows over deployed enterprise operations.
+
+### Why this repository is worth reading
+
+- **Layered architecture** with explicit component boundaries — agent, MCP handlers, retrieval, indexing, storage, LLM — documented in ADRs and enforced in code.
+- **Hybrid retrieval pipeline** — BGE-M3 dense + sparse → RRF fusion → cross-encoder rerank — with a 70-case evaluation benchmark comparing four strategies.
+- **592 passing tests** (4 model-marker tests skipped by default) covering MCP contracts, retrieval composition, agent tool loops, and CLI workflows.
+- **Honest scope** — deferred capabilities (MCP SDK transport, query rewriting, durable memory) and intentional non-goals are documented, not hidden.
+- **Reproducible demo path** — synthetic corpus generator, bootstrap CLI (`rag demo`, `rag evaluate`, `rag chat`), and stub-first smoke workflow.
+- **Source attribution** — every retrieval hit carries document title, path, section, and line range for inspectable answers.
+- **Decision discipline** — 86 architectural decision records with an index in [docs/DECISIONS.md](docs/DECISIONS.md).
+
+### Current implementation status
+
+| Capability | Status | Notes |
+| ---------- | ------ | ----- |
+| LangGraph agent with tool loop | **Implemented** | Streaming chat via `rag chat` |
+| MCP-style typed handler boundary | **Implemented** (in-process) | [ADR-034](docs/DECISIONS.md#adr-034-mcp-handler-layer-without-sdk-runtime) |
+| MCP SDK stdio/network transport | **Deferred** | Proposed Plan 12c — see [docs/PROGRESS.md](docs/PROGRESS.md) |
+| Hybrid retrieval + reranking | **Implemented** | Dense, sparse, fusion, rerank strategies |
+| Retrieval evaluation benchmark | **Implemented** | 70 cases; document-level metrics only |
+| Query rewriting / retrieval retry | **Deferred** | Proposed Plan 12b — see [docs/PROGRESS.md](docs/PROGRESS.md) |
+| Tier 2 browse tools (`get_document`, `get_statistics`) | **Deferred** | Not in current MCP surface |
+| Durable agent memory | **Deferred** (session-local today) | [ADR-045](docs/DECISIONS.md#adr-045-in-memory-conversation-state-only), [ADR-073](docs/DECISIONS.md#adr-073-session-persistence-policy) |
+| Production deployment / auth / observability | **Out of scope** | [PROJECT.md](PROJECT.md#non-goals) |
+
+> **Operational non-goals.** This repository intentionally omits authentication, deployment manifests, health-check endpoints, structured tracing, metrics dashboards, runbooks for production operations, and durable conversation persistence. These absences reflect [PROJECT.md](PROJECT.md#non-goals) scope — the goal is architectural demonstration, not a deployable service. Chat uses in-process session state only; nothing is written to disk between turns.
 
 ---
 
@@ -19,7 +45,7 @@ Simple dense vector search alone is often insufficient. Production systems typic
 | Capability | Implementation |
 | ---------- | -------------- |
 | Conversational assistant | LangGraph agent with tool loop and streaming chat |
-| Knowledge boundary | MCP-style handlers (`search_documents`, indexing tools) |
+| Knowledge boundary | MCP-style typed handlers (`search_documents`, indexing tools; in-process) |
 | Document indexing | LlamaIndex loading and chunking → Qdrant |
 | Hybrid retrieval | BGE-M3 dense + sparse → RRF fusion → BGE reranker |
 | Source attribution | Document title, path, section, line range on every hit |
@@ -32,10 +58,12 @@ Dense retrieval captures semantic similarity. Sparse (lexical) retrieval capture
 
 The evaluation framework compares **dense**, **sparse**, **fusion**, and **rerank** strategies on the same benchmark so trade-offs are measurable, not anecdotal.
 
-### Educational vs production-oriented design
+### Educational vs production-style design
 
-- **Educational:** clear layer boundaries, stub providers for fast CI, documented ADRs, committed benchmark.
-- **Production-oriented:** real BGE-M3 embeddings, real BGE reranker, human-in-the-loop index rebuild approval, structured citations, offline retrieval metrics.
+- **Educational:** clear layer boundaries, stub providers for fast local runs, documented ADRs, local benchmark reproduction workflow.
+- **Production-style patterns:** real BGE-M3 embeddings, real BGE reranker, human-in-the-loop index rebuild approval, structured citations, offline retrieval metrics.
+
+This is **not** a deployed production service. Language throughout this README uses *production-style* to mean patterns commonly found in enterprise RAG systems, implemented here as a local demo.
 
 ### High-level architecture
 
@@ -60,7 +88,9 @@ flowchart TB
     Indexing --> Qdrant
 ```
 
-The agent never talks to Qdrant directly. All knowledge access flows through MCP handlers.
+> **MCP boundary today.** Knowledge tools (`search_documents`, indexing preview/apply) are implemented as **typed in-process handlers** matching the MCP tool contract. There is no runnable MCP SDK stdio or network server in this repository — SDK transport is deferred (proposed Plan 12c). See [ADR-034](docs/DECISIONS.md#adr-034-mcp-handler-layer-without-sdk-runtime).
+
+The agent never talks to Qdrant directly. All knowledge access flows through MCP-style handlers.
 
 ---
 
@@ -75,9 +105,9 @@ CLI Chat (`rag chat`)
   ↓
 LangGraph Agent
   ↓
-MCP Client (in-process tool adapters)
+MCP client adapters (in-process)
   ↓
-Knowledge MCP Server (handler layer)
+MCP-style knowledge handlers (typed tool contract)
   ↓
 Retrieval Layer
   ↓
@@ -168,6 +198,8 @@ Retrieval evaluation uses `data/evaluation/retrieval_benchmark_v1.json`:
 | Matching | Normalized `SearchResult.source.document_path` |
 
 Benchmark-canonical paths include `policies/remote_work_policy.md`, `policies/security_policy.md`, and `procedures/incident_response.md`.
+
+Short corpus excerpts for GitHub inspection (without running the generator): [docs/examples/](docs/examples/).
 
 ---
 
@@ -358,6 +390,44 @@ uv run rag chat --no-sources
 
 The evaluation layer measures **retrieval quality only** — not LLM answer quality or agent behavior.
 
+### Benchmark limitations
+
+The benchmark is intentionally narrow for educational use:
+
+- **Document-level relevance only** — one gold document per case; no chunk-level labels.
+- **No negative or off-topic cases** — every question expects a corpus hit.
+- **No answer faithfulness** — metrics do not evaluate generated LLM responses.
+- **No latency or throughput testing** — correctness metrics only.
+- **Corpus version not hash-verified** — reproducibility depends on regenerating the corpus locally from the committed manifest.
+- **No automated CI benchmark gate** — validation runs stub providers; authoritative numbers require local real-model evaluation.
+
+### Reproducing benchmark results
+
+**Preconditions:**
+
+1. Corpus generated: `python3 tools/knowledge_generator/generator.py`
+2. Qdrant running: `docker compose up -d`
+3. Corpus indexed (stub or real embeddings)
+4. For authoritative model-quality numbers: `RAG_EMBEDDING_MODE=real`, optional `RAG_RERANKER_MODE=real`, then `rag demo load --rebuild --approve`
+
+**Stub mode (wiring check):**
+
+```bash
+uv run rag demo load
+uv run rag evaluate compare
+```
+
+**Real mode (authoritative Hit@K numbers):**
+
+```bash
+export RAG_EMBEDDING_MODE=real
+export RAG_RERANKER_MODE=real
+uv run rag demo load --rebuild --approve
+uv run rag evaluate compare
+```
+
+The CLI prints a configuration banner before results. Stub mode includes an explicit non-authoritative notice. No benchmark snapshot artifacts are committed to the repository — reproduce locally using the commands above.
+
 ### Commands
 
 ```bash
@@ -509,7 +579,76 @@ Phases delivered to date (from [docs/PROGRESS.md](docs/PROGRESS.md)):
 
 ---
 
-## Quick Start (full demo)
+## Fastest smoke demo (stub mode)
+
+Recommended first run — no LLM gateway, no real model downloads. Stub embedding and reranker providers exercise the full pipeline.
+
+```bash
+# 1. Dependencies and Qdrant
+uv sync
+docker compose up -d
+
+# 2. Generate corpus and index (stub providers are the default)
+python3 tools/knowledge_generator/generator.py
+uv run rag demo info
+uv run rag demo load
+uv run rag demo info
+
+# 3. Compare retrieval strategies on the benchmark
+uv run rag evaluate compare
+```
+
+The CLI does **not** auto-load `.env`. For chat or custom endpoints, load variables manually: `set -a && source .env && set +a` (see [.env.example](.env.example)).
+
+### Expected output (abbreviated)
+
+**`rag demo info`** (before indexing; count includes generated `knowledge/README.md`):
+
+```text
+Corpus exists: yes
+Corpus document count: 97
+Collection exists: no
+Collection chunk count: 0
+Retrieval pipeline: dense + sparse → fusion (RRF) → rerank (stub embeddings)
+Qdrant URL: http://localhost:6333
+Collection name: knowledge_chunks
+Corpus path: …/knowledge
+```
+
+**`rag demo load`:**
+
+```text
+indexed demo corpus: documents=97, chunks=…, collection=knowledge_chunks
+```
+
+**`rag evaluate compare`** (stub mode — wiring check, not authoritative benchmarks):
+
+```text
+Evaluation configuration:
+  Dataset: retrieval_benchmark_v1
+  Cases: 70
+  Eval top_k: 5
+  Metrics k: 1,3,5
+  Embedding mode: stub
+  Reranker mode: stub
+  Note: stub provider mode — results verify wiring and relative strategy behavior,
+        not authoritative model-quality benchmarks.
+
+Comparison Report: retrieval_benchmark_v1
+Cases: 70
+Eval top_k: 5
+
+Metric        dense    sparse   fusion   rerank
+Hit@1         …        …        …        …
+...
+MRR           …        …        …        …
+```
+
+Exact metric values depend on stub provider behavior and are not comparable to real-model results in [Benchmark Results](#benchmark-results).
+
+---
+
+## Full demo (real models + chat)
 
 ```bash
 # 1. Dependencies and infrastructure
@@ -521,7 +660,7 @@ cp .env.example .env   # configure LLM_* for chat
 python3 tools/knowledge_generator/generator.py
 uv run rag demo load
 
-# 3. Optional: real models (then reindex)
+# 3. Real models (then reindex)
 export RAG_EMBEDDING_MODE=real
 export RAG_RERANKER_MODE=real
 uv run rag demo load --rebuild --approve
@@ -529,7 +668,7 @@ uv run rag demo load --rebuild --approve
 # 4. Evaluate retrieval
 uv run rag evaluate compare
 
-# 5. Chat
+# 5. Chat (requires LLM gateway)
 set -a && source .env && set +a
 uv run rag chat
 ```
@@ -566,7 +705,7 @@ Optional: `LLM_TEMPERATURE`, `LLM_MAX_TOKENS`, `LLM_TIMEOUT_SECONDS`.
 
 ## Development
 
-Requires Python 3.12+ and [uv](https://docs.astral.sh/uv/).
+Requires Python 3.12+ and [uv](https://docs.astral.sh/uv/). See [CONTRIBUTING.md](CONTRIBUTING.md) for workflow and validation requirements.
 
 ```bash
 uv sync
@@ -584,7 +723,9 @@ Run all tools through `uv run`. On Linux/Windows, `torch` resolves from the PyTo
 | -------- | ------- |
 | [AGENTS.md](AGENTS.md) | Contributor and agent guide |
 | [PROJECT.md](PROJECT.md) | Vision, scope, goals |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | Contribution workflow and validation |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Authoritative architecture reference |
-| [docs/DECISIONS.md](docs/DECISIONS.md) | Architectural decision records |
+| [docs/DECISIONS.md](docs/DECISIONS.md) | Architectural decision records (with ADR index) |
 | [docs/PROGRESS.md](docs/PROGRESS.md) | Delivery chronology |
+| [docs/examples/](docs/examples/) | Short corpus excerpts for inspection |
 | [docs/plans/completed/](docs/plans/completed/) | Completed implementation plans |
